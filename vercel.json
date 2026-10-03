@@ -1,0 +1,9 @@
+{
+  "regions": ["bom1"],
+  "functions": {
+    "api/picks.py": {
+      "maxDuration": 60,
+      "includeFiles": "api/data/**"
+    }
+  }
+}

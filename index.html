@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sector Rotation Picks</title>
+<meta name="description" content="Quarterly NIFTY 500 sector-rotation picks with reasoning, computed live from NSE data.">
+<style>
+  :root {
+    --bg: #f7f7f5; --surface: #ffffff; --text: #1c1d1f; --muted: #6b6e75; --border: #e3e3df;
+    --accent: #1f6feb; --accent-soft: #e8f0fe; --good: #1a7f37; --bad: #c62828; --warn-bg: #fff6e0; --warn: #8a5a00;
+    --bar: #c9d7f2; --bar-top: #1f6feb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111214; --surface: #1a1b1e; --text: #ececec; --muted: #9a9ca3; --border: #2c2e33;
+      --accent: #6ea8ff; --accent-soft: #1d2a40; --good: #4ecb71; --bad: #ff6b6b; --warn-bg: #3a2d10; --warn: #f5c451;
+      --bar: #2c3a55; --bar-top: #6ea8ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111214; --surface: #1a1b1e; --text: #ececec; --muted: #9a9ca3; --border: #2c2e33;
+    --accent: #6ea8ff; --accent-soft: #1d2a40; --good: #4ecb71; --bad: #ff6b6b; --warn-bg: #3a2d10; --warn: #f5c451;
+    --bar: #2c3a55; --bar-top: #6ea8ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 17px; margin: 32px 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .chip { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+  .chip b { font-weight: 600; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .pick h3 { margin: 0; font-size: 18px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .pick .name { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  .big { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 600; }
+  .pos { color: var(--good); } .neg { color: var(--bad); }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 12px; }
+  .kpi { background: var(--bg); border-radius: 8px; padding: 6px 8px; }
+  .kpi span { display: block; font-size: 11px; color: var(--muted); }
+  .kpi b { font-variant-numeric: tabular-nums; font-size: 14px; }
+  ul { margin: 0; padding-left: 18px; } li { margin: 4px 0; }
+  .flags { margin-top: 10px; background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  .flags ul { padding-left: 16px; }
+  .secnote { margin: 8px 0; }
+  .secnote.warn { border-left: 3px solid var(--warn); padding-left: 10px; }
+  .bars { display: grid; gap: 6px; }
+  .bar { display: grid; grid-template-columns: 180px 1fr 64px; gap: 10px; align-items: center; font-size: 13px; }
+  .bar .track { background: var(--bg); height: 14px; border-radius: 4px; position: relative; overflow: hidden; }
+  .bar .fill { position: absolute; top: 0; bottom: 0; background: var(--bar); border-radius: 4px; }
+  .bar.top .fill { background: var(--bar-top); }
+  .bar.top .label { font-weight: 600; }
+  .bar .val { text-align: right; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .tablewrap { overflow-x: auto; }
+  .loading { text-align: center; padding: 60px 16px; color: var(--muted); }
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--accent);
+             border-radius: 50%; margin: 0 auto 14px; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error { background: var(--warn-bg); color: var(--warn); padding: 14px; border-radius: 10px; }
+  .fine { color: var(--muted); font-size: 13px; }
+  .tag { font-size: 11px; background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 2px 6px; font-weight: 600; }
+  @media (max-width: 560px) {
+    .bar { grid-template-columns: 110px 1fr 56px; }
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    h1 { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sector Rotation Picks</h1>
+  <p class="sub">NIFTY 500 · top 3 sectors by 6-month return × top 2 stocks by relative strength · rebalanced quarterly</p>
+  <div id="app"><div class="loading"><div class="spinner"></div>Downloading 6 months of NSE prices and computing picks…<br>
+    <span class="fine">The first load can take up to a minute; after that results are cached for 6 hours.</span></div></div>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const pct = x => (x >= 0 ? "+" : "") + (x * 100).toFixed(1) + "%";
+const cls = x => x >= 0 ? "pos" : "neg";
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtDate = s => new Date(s + "T00:00:00").toLocaleDateString("en-IN", {day: "numeric", month: "short", year: "numeric"});
+
+function render(d) {
+  const daysTo = Math.round((new Date(d.next_rebalance + "T00:00:00") - new Date(new Date().toDateString())) / 864e5);
+  const maxAbs = Math.max(...d.sector_ranking.map(s => Math.abs(s.r6)), 0.01);
+  const minV = Math.min(0, ...d.sector_ranking.map(s => s.r6));
+  const span = Math.max(...d.sector_ranking.map(s => s.r6)) - minV || 1;
+  let h = `<div class="meta">
+      <span class="chip">Prices through <b>${fmtDate(d.data_through)}</b></span>
+      <span class="chip">Next rebalance <b>${fmtDate(d.next_rebalance)}</b> (${daysTo <= 0 ? "today" : "in " + daysTo + " day" + (daysTo > 1 ? "s" : "")})</span>
+      <span class="chip">Universe <b>${d.universe_size}</b> stocks · <b>${d.sectors_ranked}</b> sectors</span>
+      <span class="chip">Index list: ${esc(d.list_source)}</span></div>
+    <p class="fine">These are the stocks the rules would hold if the portfolio were rebalanced now. The rules only trade on the rebalance date; between rebalances, just hold.</p>`;
+
+  h += `<h2>Picks</h2><div class="grid">`;
+  for (const p of d.picks) {
+    h += `<div class="card pick">
+      <h3><span>${esc(p.symbol)}</span><span class="big ${cls(p.r6)}">${pct(p.r6)} <span class="fine">6m</span></span></h3>
+      <div class="name">${esc(p.name)} · <span class="tag">${esc(p.sector)}</span> · ₹${p.close.toLocaleString("en-IN")}</div>
+      <div class="kpis">
+        <div class="kpi"><span>vs sector</span><b class="${cls(p.rs)}">${(p.rs >= 0 ? "+" : "") + (p.rs * 100).toFixed(0)} pts</b></div>
+        <div class="kpi"><span>3 months</span><b class="${cls(p.r3)}">${pct(p.r3)}</b></div>
+        <div class="kpi"><span>1 month</span><b class="${cls(p.r1)}">${pct(p.r1)}</b></div>
+        <div class="kpi"><span>From 6m high</span><b class="${cls(p.off_high + 0.0001)}">${pct(p.off_high)}</b></div>
+      </div>
+      <ul>${p.reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul>
+      ${p.flags.length ? `<div class="flags"><b>Watch out</b><ul>${p.flags.map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>` : ""}
+    </div>`;
+  }
+  h += `</div>`;
+
+  h += `<h2>Why these sectors</h2><div class="card">${d.sector_notes.map(n =>
+        `<p class="secnote ${n.includes("Caution") ? "warn" : ""}">${esc(n)}</p>`).join("")}</div>`;
+
+  h += `<h2>Sector ranking <span class="fine">(average 6-month return of the sector's stocks in the universe)</span></h2><div class="card bars">`;
+  for (const s of d.sector_ranking) {
+    const left = ((Math.min(0, s.r6) - minV) / span) * 100, width = (Math.abs(s.r6) / span) * 100;
+    h += `<div class="bar ${s.rank <= d.rules.sectors ? "top" : ""}">
+      <span class="label">${s.rank}. ${esc(s.sector)} <span class="fine">(${s.n})</span></span>
+      <span class="track"><span class="fill" style="left:${left}%;width:${width}%"></span></span>
+      <span class="val ${cls(s.r6)}">${pct(s.r6)}</span></div>`;
+  }
+  h += `</div>`;
+
+  h += `<h2>Next in line <span class="fine">(would be picked if a pick drops out)</span></h2><div class="card tablewrap"><table>
+    <tr><th>Stock</th><th>Sector</th><th class="n">6m</th><th class="n">vs sector</th><th class="n">3m</th><th class="n">From high</th></tr>
+    ${d.runners_up.map(r => `<tr><td><b>${esc(r.symbol)}</b></td><td>${esc(r.sector)}</td><td class="n ${cls(r.r6)}">${pct(r.r6)}</td>
+      <td class="n ${cls(r.rs)}">${(r.rs * 100).toFixed(0)} pts</td><td class="n ${cls(r.r3)}">${pct(r.r3)}</td><td class="n">${pct(r.off_high)}</td></tr>`).join("")}
+  </table></div>`;
+
+  h += `<h2>Rules</h2><div class="card"><ul>
+    <li>Universe: NIFTY 500 stocks priced at ₹${d.rules.min_price} or more with 6 months of history; the ${d.rules.universe} most traded (60-day median turnover).</li>
+    <li>Sectors: NSE industry groups with at least ${d.rules.min_members} stocks, ranked by the average ${d.rules.lookback_days}-trading-day (6-month) return.</li>
+    <li>Picks: top ${d.rules.sectors} sectors; in each, the ${d.rules.per_sector} stocks that beat their sector by the most. Equal weight; hold for the quarter.</li>
+    <li>Rebalance on the first trading day of January, April, July and October.</li></ul>
+    <p class="fine">Backtest Oct 2022 to Sep 2026 (point-in-time NIFTY 500): about +45% a year against +21% for an equal-weight benchmark in 2023–25, but all of that edge came in 2023–24. Over the last 12 months it made +14% against +7.5%, and its worst fall was −34%. Past results don't predict future ones. Excludes taxes (20% short-term capital gains) and dividends.</p>
+    <p class="fine">This page is the output of a rule-based model, not investment advice. Data: NSE bhavcopies and NSE Indices constituent lists; generated ${esc(d.generated_at.replace("T", " "))} IST in ${d.seconds}s.</p></div>`;
+  $("#app").innerHTML = h;
+}
+
+fetch("/api/picks").then(r => r.json()).then(d => {
+  if (d.error) throw new Error(d.error);
+  render(d);
+}).catch(e => {
+  $("#app").innerHTML = `<div class="error"><b>Couldn't compute the picks.</b><br>${esc(e.message)}<br>
+    <span class="fine">NSE sometimes blocks or rate-limits requests. Try reloading in a few minutes.</span></div>`;
+});
+</script>
+</body>
+</html>
