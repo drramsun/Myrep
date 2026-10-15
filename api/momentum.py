@@ -35,7 +35,7 @@ from urllib.parse import parse_qs, urlparse
 
 TOP, KEEP_RANK, LONG, SKIP = 20, 40, 273, 21          # 12 months (252 + skip) back to 1 month back
 MIN_PRICE, MIN_TURNOVER, TURNOVER_DAYS, HIST_DAYS, HIST_MIN = 20.0, 1e7, 60, 252, 230
-SHOW = 60                                              # ranked stocks returned for the table
+BENCH = "NIFTYBEES"                                    # Nifty 50 ETF, for the equity-curve comparison
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
       "Accept": "*/*"}
 BHAV = "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_{:%Y%m%d}_F_0000.csv.zip"
@@ -85,6 +85,9 @@ def fetch_day(d, isins, sym_isin):
                 return None                                   # a repeated older file served on a holiday
             if r["SctySrs"] != "EQ":                          # EQ only (BE/BZ trade-for-trade excluded)
                 continue
+            if r["TckrSymb"] == BENCH:
+                out[BENCH] = (float(r["OpnPric"] or 0), float(r["ClsPric"]), float(r["PrvsClsgPric"] or 0), 0.0)
+                continue
             key = r["ISIN"] if r["ISIN"] in isins else sym_isin.get(r["TckrSymb"])
             if key and (key not in out or r["ISIN"] == key):
                 out[key] = (float(r["OpnPric"] or 0), float(r["ClsPric"]), float(r["PrvsClsgPric"] or 0),
@@ -133,6 +136,8 @@ def rank_at(series, members, dates, k):
     if k - LONG < 0:
         return out
     for isin, s in series.items():
+        if isin not in members:                                # the benchmark ETF
+            continue
         hist = sum(r is not None for r in s["ret"][max(0, k - HIST_DAYS + 1): k + 1])
         close = next((c for c in reversed(s["close"][: k + 1]) if c), None)
         tv = [v for v in s["tv"][max(0, k - TURNOVER_DAYS + 1): k + 1] if v is not None]
@@ -217,6 +222,8 @@ def compute(holdings):
         x["since_trade"] = (s["g"][-1] / s["g"][k_off + 1] - 1) if s and trade_day else 0.0
         x["latest_close"] = next((c for c in reversed(s["close"]) if c), x["close"]) if s else x["close"]
 
+    curve = equity_curve(series, dates, k_off, portfolio, {x["isin"] for x in official})
+
     latest = rank_at(series, members, dates, len(dates) - 1)
     rank_now = {x["symbol"]: x for x in latest}
     watch = []
@@ -229,7 +236,7 @@ def compute(holdings):
     nxt = last_weekday_of_month(today)
     if nxt <= dates[-1]:
         nxt = last_weekday_of_month(date(today.year + today.month // 12, today.month % 12 + 1, 1))
-    slim = lambda xs: [{k: v for k, v in x.items() if k != "isin"} for x in xs]
+    slim = lambda xs: [{k: (round(v, 5) if isinstance(v, float) else v) for k, v in x.items() if k != "isin"} for x in xs]
     return {
         "generated_at": datetime.now(IST).isoformat(timespec="minutes"), "list_source": list_source,
         "rules": {"top": TOP, "keep_rank": KEEP_RANK, "lookback_days": LONG, "skip_days": SKIP,
@@ -238,10 +245,36 @@ def compute(holdings):
         "data_through": dates[-1].isoformat(), "next_signal": nxt.isoformat(), "trading_days": len(dates),
         "holdings_in": holdings, "unknown_symbols": unknown, "fresh_start": not holdings,
         "official": {"universe": len(official), "keep": slim(keep), "sell": slim(sell), "buy": slim(buy),
-                     "portfolio": slim(portfolio), "ranking": slim(official[:SHOW])},
-        "latest": {"universe": len(latest), "watch": watch, "ranking": slim(latest[:SHOW])},
+                     "portfolio": slim(portfolio), "ranking": slim(official)},
+        "latest": {"universe": len(latest), "watch": watch, "ranking": slim(latest)},
+        "curve": curve,
         "seconds": round(time.time() - t0, 1),
     }
+
+
+def equity_curve(series, dates, k_off, portfolio, universe):
+    """growth since the trade-day close (the rebalance): this month's portfolio held equal weight and left to drift,
+    against an equal-weight NIFTY 500 (the screened universe, rebalanced daily) and the Nifty 50 ETF.
+    Costs and the liquid share are left out; the page applies the split."""
+    t0 = k_off + 1
+    if t0 >= len(dates):
+        return None
+    idx = range(t0, len(dates))
+    pos = {}
+    for x in portfolio:
+        g = series[x["isin"]]["g"]
+        pos[x["symbol"]] = [round(g[i] / g[t0], 6) for i in idx]
+    port = [sum(v[j] for v in pos.values()) / len(pos) for j in range(len(idx))] if pos else []
+    ew, e = [], 1.0
+    for i in idx:
+        if i > t0:
+            rs = [series[u]["ret"][i] for u in universe if series[u]["ret"][i] is not None]
+            e *= 1 + (sum(rs) / len(rs) if rs else 0.0)
+        ew.append(round(e, 6))
+    b = series.get(BENCH)
+    nifty = [round(b["g"][i] / b["g"][t0], 6) for i in idx] if b else None
+    return {"dates": [dates[i].isoformat() for i in idx], "portfolio": [round(v, 6) for v in port],
+            "ew_nifty500": ew, "nifty50": nifty, "positions": pos}
 
 
 def parse_holdings(path):
@@ -264,7 +297,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         if code == 200:   # let Vercel's CDN serve the same answer for 6 h, then refresh in the background
-            self.send_header("Cache-Control", "public, s-maxage=21600, stale-while-revalidate=86400")
+            self.send_header("Cache-Control", "public, max-age=0, s-maxage=21600, stale-while-revalidate=86400")
         self.end_headers()
         self.wfile.write(body)
 
@@ -279,3 +312,9 @@ if __name__ == "__main__":      # local check: python api/momentum.py [SYM1,SYM2
     print("sell:", [(x["symbol"], x["reason"]) for x in o["sell"]])
     print("buy: ", [x["symbol"] for x in o["buy"]])
     print("watch:", [(w["symbol"], w["rank_now"], w["status"]) for w in res["latest"]["watch"]])
+    c = res["curve"]
+    if c:
+        print("curve:", c["dates"][0], "->", c["dates"][-1], "| portfolio", round(c["portfolio"][-1] - 1, 4),
+              "| EW N500", round(c["ew_nifty500"][-1] - 1, 4), "| Nifty 50", c["nifty50"] and round(c["nifty50"][-1] - 1, 4))
+    print("ranking rows:", len(res["official"]["ranking"]), len(res["latest"]["ranking"]), "| json KB",
+          len(json.dumps(res)) // 1024)

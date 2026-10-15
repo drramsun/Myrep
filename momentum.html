@@ -10,18 +10,21 @@
     --bg: #f7f7f5; --surface: #ffffff; --text: #1c1d1f; --muted: #6b6e75; --border: #e3e3df;
     --accent: #1f6feb; --accent-soft: #e8f0fe; --good: #1a7f37; --bad: #c62828; --warn-bg: #fff6e0; --warn: #8a5a00;
     --good-soft: #e6f4ea; --bad-soft: #fdecea;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --grid: #ececE8; --axis: #b9bab4;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #111214; --surface: #1a1b1e; --text: #ececec; --muted: #9a9ca3; --border: #2c2e33;
       --accent: #6ea8ff; --accent-soft: #1d2a40; --good: #4ecb71; --bad: #ff6b6b; --warn-bg: #3a2d10; --warn: #f5c451;
       --good-soft: #15301f; --bad-soft: #3a1a1a;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --grid: #26282c; --axis: #4a4d54;
     }
   }
   :root[data-theme="dark"] {
     --bg: #111214; --surface: #1a1b1e; --text: #ececec; --muted: #9a9ca3; --border: #2c2e33;
     --accent: #6ea8ff; --accent-soft: #1d2a40; --good: #4ecb71; --bad: #ff6b6b; --warn-bg: #3a2d10; --warn: #f5c451;
     --good-soft: #15301f; --bad-soft: #3a1a1a;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --grid: #26282c; --axis: #4a4d54;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
@@ -80,6 +83,25 @@
   .fine { color: var(--muted); font-size: 13px; }
   .fine ul { padding-left: 18px; } .fine li { margin: 4px 0; }
   .total td { font-weight: 600; }
+  .h2row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; justify-content: space-between; margin: 32px 0 12px; }
+  .h2row h2 { margin: 0; }
+  button.small { font-size: 13px; padding: 4px 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .legend i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 6px; border-radius: 1px; }
+  .chartbox { position: relative; }
+  .chartbox svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chartbox text { font: 11px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; fill: var(--muted); }
+  .chartbox .lbl { font-size: 12px; fill: var(--text); }
+  .tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border);
+         border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); min-width: 190px; display: none; z-index: 2; }
+  .tip .d { color: var(--muted); margin-bottom: 4px; }
+  .tip div.r { display: flex; justify-content: space-between; gap: 12px; }
+  .tip i { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 6px; }
+  .readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 12px 0; }
+  .readout div { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+  .readout span { display: block; font-size: 12px; color: var(--muted); }
+  .readout b { font-size: 16px; font-variant-numeric: tabular-nums; }
+  .asof { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; font-size: 13px; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -155,12 +177,16 @@ function render() {
                : `<b>No trades this month:</b> all ${o.keep.length} holdings still rank in the top 40.`}
     Rules use closes up to ${fmtDate(d.signal_date)}, so the answer only changes after the next month-end close.</div>`;
 
-  h += `<h2>This month's trades</h2><div class="cols">
+  h += `<div class="h2row"><h2>This month's trades</h2><button class="small" id="dl-trades">Download trades (CSV)</button></div><div class="cols">
     <div class="card"><h3>Sell (${o.sell.length})</h3>${tradeList(o.sell, "sell", "Nothing to sell.")}</div>
     <div class="card"><h3>Buy (${o.buy.length})</h3>${tradeList(o.buy, "buy", "Nothing to buy.")}</div>
     <div class="card"><h3>Keep (${o.keep.length})</h3>${tradeList(o.keep, "keep", d.fresh_start ? "Fresh start: nothing held yet." : "Nothing kept.")}</div></div>
     <div class="row"><button id="save">Save the new portfolio as my holdings</button>
     <span class="fine">Do this once your trades are done, so next month's check starts from them.</span></div>`;
+
+  h += `<div class="h2row"><h2>P&amp;L since the rebalance</h2>
+    <button class="small" id="dl-pos">Download daily P&amp;L (CSV)</button></div>
+    <div class="card" id="curvecard"></div>`;
 
   h += `<h2>Sizing</h2><div class="card"><div class="sizing">
     <div><label for="cap">Total capital (₹)</label><input type="number" id="cap" min="0" step="10000" value="${esc(store.get("mom_cap", "1000000"))}"></div>
@@ -181,7 +207,10 @@ function render() {
       <b>${esc(x.symbol)}</b> · rank ${x.rank_month_end} at month end → ${x.rank_now ?? "not eligible"} now</li>`).join("")}</ul>`
       : `<p class="empty">All ${w.length} stocks still rank 30 or better.</p>`}</div>`;
 
-  h += `<h2>Ranking</h2><div class="row" style="margin:0 0 10px"><div class="seg" role="group" aria-label="Ranking date">
+  const rk = view === "official" ? o.ranking : d.latest.ranking;
+  h += `<div class="h2row"><h2>Ranking (all ${rk.length} eligible stocks)</h2>
+    <button class="small" id="dl-rank">Download all ${rk.length} (CSV)</button></div>
+    <div class="row" style="margin:0 0 10px"><div class="seg" role="group" aria-label="Ranking date">
     <button data-v="official" aria-pressed="${view === "official"}">Month end (${fmtDate(d.signal_date)})</button>
     <button data-v="latest" aria-pressed="${view === "latest"}">Latest (${fmtDate(d.data_through)})</button></div></div>
     <div class="card" style="padding:0"><div class="tablewrap"><table><thead><tr><th class="n">#</th><th>Stock</th><th>Sector</th>
@@ -206,8 +235,17 @@ function render() {
     window.scrollTo({top: 0, behavior: "smooth"});
   };
   document.querySelectorAll(".seg button").forEach(b => b.onclick = () => { view = b.dataset.v; render(); });
-  $("#cap").oninput = $("#share").oninput = sizing;
-  sizing(); ranking(held);
+  $("#cap").oninput = $("#share").oninput = () => { sizing(); if (data.curve && $("#readout")) asofView(); };
+  $("#dl-rank").onclick = () => downloadCsv(`momentum_ranking_${view === "official" ? d.signal_date : d.data_through}.csv`,
+    ["rank", "symbol", "name", "sector", "score_12m_1m", "r12", "r6", "r3", "r1", "off_1y_high", "vol", "turnover_cr", "close", "in_portfolio"],
+    rk.map(x => [x.rank, x.symbol, x.name, x.sector, x.score, x.r12, x.r6, x.r3, x.r1, x.off_high, x.vol, x.turnover_cr, x.close,
+                 o.portfolio.some(p => p.symbol === x.symbol) ? "yes" : ""]));
+  $("#dl-trades").onclick = () => downloadCsv(`momentum_trades_${d.trade_date || d.signal_date}.csv`,
+    ["action", "symbol", "rank", "score_12m_1m", "sector", "reason"],
+    [...o.sell.map(x => ["SELL", x]), ...o.buy.map(x => ["BUY", x]), ...o.keep.map(x => ["KEEP", x])]
+      .map(([a, x]) => [a, x.symbol, x.rank ?? "", x.score ?? "", x.sector ?? "", x.reason]));
+  $("#dl-pos").onclick = downloadPositions;
+  sizing(); ranking(held); curveView();
 }
 
 function sizing() {
@@ -225,6 +263,133 @@ function sizing() {
   rows.push(`<tr><td colspan="6" class="fine">Stocks ${inr(used)} after rounding to whole shares; the remainder goes to the liquid fund.</td></tr>`);
   $("#sizebody").innerHTML = rows.join("");
 }
+
+function downloadCsv(name, header, rows) {
+  const cell = v => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const text = "﻿" + [header, ...rows].map(r => r.map(cell).join(",")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], {type: "text/csv;charset=utf-8"}));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+
+// ---------- P&L since the rebalance ----------
+let asof = null;                          // index into curve.dates
+const SER = [
+  {key: "portfolio", name: "This month's portfolio", short: "Portfolio", color: "var(--s1)"},
+  {key: "ew_nifty500", name: "Equal-weight NIFTY 500", short: "EW N500", color: "var(--s2)"},
+  {key: "nifty50", name: "Nifty 50 (NIFTYBEES)", short: "Nifty 50", color: "var(--s3)"},
+];
+const capShare = () => [Math.max(0, +$("#cap").value || 0), +$("#share").value / 100];
+const liquidGrowth = i => {               // calendar days since the trade-day close, at 6% a year
+  const c = data.curve, days = (new Date(c.dates[i]) - new Date(c.dates[0])) / 864e5;
+  return Math.pow(1.06, days / 365);
+};
+
+function curveView() {
+  const c = data.curve, box = $("#curvecard");
+  if (!c || c.dates.length < 2) {
+    box.innerHTML = `<p class="empty">The portfolio is bought at the close of ${fmtDate(data.trade_date || data.signal_date)};
+      the curve starts once one more trading day has closed.</p>`;
+    $("#dl-pos").disabled = true;
+    return;
+  }
+  const n = c.dates.length;
+  if (asof == null || asof >= n) asof = n - 1;
+  const series = SER.filter(s => c[s.key]);
+  box.innerHTML = `<div class="legend">${series.map(s => `<span><i style="background:${s.color}"></i>${s.name}</span>`).join("")}</div>
+    <div class="chartbox" id="chart"></div>
+    <div class="asof"><label for="asof">As of</label><input type="range" id="asof" min="1" max="${n - 1}" value="${asof}">
+      <b id="asofv"></b></div>
+    <div class="readout" id="readout"></div>
+    <div class="tablewrap" style="max-height:360px"><table><thead><tr><th>Stock</th><th class="n">Rank</th><th class="n">Return</th>
+      <th class="n">P&amp;L on its share</th></tr></thead><tbody id="posbody"></tbody></table></div>
+    <p class="fine">Bought in equal amounts at the ${fmtDate(c.dates[0])} close and left to drift; before costs and tax.
+      The liquid share is assumed to earn 6% a year. Pick a date with the slider, or click the chart, to see the P&amp;L at that day's close.</p>`;
+  $("#asof").oninput = e => { asof = +e.target.value; drawChart(); asofView(); };
+  drawChart(); asofView();
+}
+
+function drawChart() {
+  const c = data.curve, n = c.dates.length, el = $("#chart");
+  const series = SER.filter(s => c[s.key]);
+  const W = Math.max(320, el.clientWidth), H = 260, m = {l: 44, r: 112, t: 10, b: 26};
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const vals = series.flatMap(s => c[s.key].map(v => v - 1));
+  let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+  const pad = (hi - lo) * 0.08 || 0.01; lo -= pad; hi += pad;
+  const step = [0.005, 0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.25, 0.5].find(s => (hi - lo) / s <= 6) || 1;
+  const x = i => m.l + i * iw / (n - 1), y = v => m.t + (hi - v) * ih / (hi - lo);
+  let g = "";
+  for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) {
+    const yy = y(t).toFixed(1), zero = Math.abs(t) < 1e-9;
+    g += `<line x1="${m.l}" x2="${m.l + iw}" y1="${yy}" y2="${yy}" stroke="${zero ? "var(--axis)" : "var(--grid)"}" stroke-width="1"/>
+      <text x="${m.l - 6}" y="${+yy + 4}" text-anchor="end">${t > 1e-9 ? "+" : ""}${(Math.abs(t) < 1e-9 ? 0 : t * 100).toFixed(step < 0.01 ? 1 : 0)}%</text>`;
+  }
+  const ticks = [...new Set([0, Math.round((n - 1) / 2), n - 1])];
+  ticks.forEach((i, k) => g += `<text x="${x(i)}" y="${H - 6}" text-anchor="${k === 0 ? "start" : k === ticks.length - 1 ? "end" : "middle"}">${
+    new Date(c.dates[i] + "T00:00:00").toLocaleDateString("en-IN", {day: "numeric", month: "short"})}</text>`);
+  g += `<line x1="${x(asof)}" x2="${x(asof)}" y1="${m.t}" y2="${m.t + ih}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>`;
+  series.forEach(s => {
+    const d = c[s.key].map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v - 1).toFixed(1)}`).join("");
+    g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  });
+  // direct end labels, nudged apart so they never collide
+  const ends = series.map(s => ({s, v: c[s.key][n - 1] - 1})).sort((a, b) => b.v - a.v);
+  let lastY = -1e9;
+  ends.forEach(e => { e.y = Math.max(y(e.v) + 4, lastY + 14); lastY = e.y; });
+  ends.forEach(e => g += `<text class="lbl" x="${m.l + iw + 8}" y="${e.y.toFixed(1)}">${e.v >= 0 ? "+" : ""}${(e.v * 100).toFixed(1)}% ${e.s.short}</text>`);
+  g += `<g id="hov" style="display:none"><line id="hl" y1="${m.t}" y2="${m.t + ih}" stroke="var(--axis)" stroke-width="1"/>${
+    series.map(s => `<circle data-k="${s.key}" r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`).join("")}</g>
+    <rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent" id="hit" style="cursor:crosshair"/>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Growth since the rebalance: portfolio against equal-weight NIFTY 500 and Nifty 50">${g}</svg><div class="tip" id="tip"></div>`;
+  const hit = $("#hit"), hov = $("#hov"), tip = $("#tip");
+  const idxAt = ev => { const r = hit.getBoundingClientRect(); return Math.max(0, Math.min(n - 1, Math.round((ev.clientX - r.left) / r.width * (n - 1)))); };
+  hit.onmousemove = ev => {
+    const i = idxAt(ev);
+    hov.style.display = "";
+    $("#hl").setAttribute("x1", x(i)); $("#hl").setAttribute("x2", x(i));
+    hov.querySelectorAll("circle").forEach(cn => { cn.setAttribute("cx", x(i)); cn.setAttribute("cy", y(c[cn.dataset.k][i] - 1)); });
+    tip.innerHTML = `<div class="d">${fmtDate(c.dates[i])}</div>` + series.map(s => `<div class="r"><span><i style="background:${s.color}"></i>${s.name}</span>
+      <b>${pct(c[s.key][i] - 1)}</b></div>`).join("");
+    tip.style.display = "block";
+    const bw = el.getBoundingClientRect().width, px = x(i) * bw / W, tw = tip.offsetWidth;
+    tip.style.left = (px + 12 + tw > bw ? Math.max(0, px - tw - 12) : px + 12) + "px";
+    tip.style.top = "8px";
+  };
+  hit.onmouseleave = () => { hov.style.display = "none"; tip.style.display = "none"; };
+  hit.onclick = ev => { asof = Math.max(1, idxAt(ev)); $("#asof").value = asof; drawChart(); asofView(); };
+}
+
+function asofView() {
+  const c = data.curve, i = asof, [cap, share] = capShare();
+  const nPos = Object.keys(c.positions).length || 1, per = cap * share / nPos;
+  const stockPnl = cap * share * (c.portfolio[i] - 1), liqPnl = cap * (1 - share) * (liquidGrowth(i) - 1);
+  $("#asofv").textContent = `${fmtDate(c.dates[i])} · ${i} trading day${i === 1 ? "" : "s"}`;
+  const money = v => `<span class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : "−"}${inr(Math.abs(v))}</span>`;
+  $("#readout").innerHTML = `
+    <div><span>Portfolio</span><b>${pct(c.portfolio[i] - 1)}</b></div>
+    <div><span>vs equal-weight NIFTY 500</span><b>${pct(c.portfolio[i] - c.ew_nifty500[i])}</b></div>
+    ${c.nifty50 ? `<div><span>vs Nifty 50</span><b>${pct(c.portfolio[i] - c.nifty50[i])}</b></div>` : ""}
+    <div><span>Your P&amp;L (${Math.round(share * 100)}% in stocks)</span><b>${money(stockPnl + liqPnl)}</b></div>
+    <div><span>On ${inr(cap)} total</span><b>${pct((stockPnl + liqPnl) / Math.max(1, cap))}</b></div>`;
+  const rank = Object.fromEntries(data.official.portfolio.map(x => [x.symbol, x.rank]));
+  const rows = Object.entries(c.positions).map(([sym, g]) => ({sym, r: g[i] - 1})).sort((a, b) => b.r - a.r);
+  $("#posbody").innerHTML = rows.map(p => `<tr><td><b>${esc(p.sym)}</b></td><td class="n">${rank[p.sym] ?? ""}</td>
+    <td class="n">${pct(p.r)}</td><td class="n">${money(per * p.r)}</td></tr>`).join("");
+}
+
+function downloadPositions() {
+  const c = data.curve;
+  if (!c) return;
+  const syms = Object.keys(c.positions);
+  downloadCsv(`momentum_pnl_since_${c.dates[0]}.csv`, ["date", "portfolio", "ew_nifty500", "nifty50", ...syms],
+    c.dates.map((dt, i) => [dt, (c.portfolio[i] - 1).toFixed(5), (c.ew_nifty500[i] - 1).toFixed(5),
+      c.nifty50 ? (c.nifty50[i] - 1).toFixed(5) : "", ...syms.map(s => (c.positions[s][i] - 1).toFixed(5))]));
+}
+
+let _rz;
+window.addEventListener("resize", () => { clearTimeout(_rz); _rz = setTimeout(() => { if (data && data.curve && $("#chart")) drawChart(); }, 150); });
 
 function ranking() {
   const port = new Set(data.official.portfolio.map(x => x.symbol));

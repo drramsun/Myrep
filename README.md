@@ -62,6 +62,13 @@ The live version of the rule picked in `../smallcase_momentum/` (tune.py and siz
 - After trading, press *Save the new portfolio as my holdings*, so next month's check starts from them.
 - With no holdings, it returns the plain top 20 (a fresh start).
 
+**P&L since the rebalance.** The page draws an equity curve from the trade-day close to the latest close:
+- This month's portfolio (equal amounts, left to drift), against an equal-weight NIFTY 500 and NIFTYBEES.
+- Pick any date with the slider (or click the chart) to see the portfolio's return, P&L per stock, and P&L in ₹ for your capital and split. The liquid share is assumed to earn 6% a year.
+- The curve is before costs and tax.
+
+**Downloads (CSV):** the full ranking (all ~470 eligible stocks, month-end or latest), this month's trades, and the daily P&L since the rebalance (portfolio, benchmarks, and each stock).
+
 **Data.** Each cache miss downloads about 310 daily bhavcopies (about 15 months), which takes about 16 s locally. The function is allowed 60 s. Responses are cached for 6 h per holdings list.
 
 **Rows are matched on ISIN *or* symbol.** A face-value split gives a stock a new ISIN, and a rename gives it a new symbol, so either one is enough to keep its history (MCX's split, for example).
