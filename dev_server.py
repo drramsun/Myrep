@@ -4,9 +4,16 @@ import os
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-spec = importlib.util.spec_from_file_location("picks_api", os.path.join(HERE, "api", "picks.py"))
-api = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(api)
+
+
+def _load(name):
+    spec = importlib.util.spec_from_file_location(name + "_api", os.path.join(HERE, "api", name + ".py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+APIS = {"/api/picks": _load("picks"), "/api/momentum": _load("momentum")}
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -14,8 +21,9 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*a, directory=HERE, **kw)
 
     def do_GET(self):
-        if self.path.startswith("/api/picks"):
-            return api.handler.do_GET(self)
+        for route, mod in APIS.items():
+            if self.path.split("?")[0] == route:
+                return mod.handler.do_GET(self)
         if self.path.startswith("/api/"):
             return self.send_error(404)
         return super().do_GET()

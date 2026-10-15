@@ -1,6 +1,11 @@
 """
 GET /api/picks -> JSON with this quarter's Sector Rotation picks and the reasoning behind each one.
 
+Two results are returned:
+  official  the portfolio for the current quarter: the rules run on closes up to the trading day before the
+            quarter's first trading day (STRATEGY.md). It stays the same until the next rebalance.
+  preview   the same rules on the latest closes ("if you rebalanced today"). Changes daily; not traded.
+
 Rules (identical to STRATEGY.md / sector_rotation_test.py):
   universe  NIFTY 500 members, price >= Rs 20, >= 6 months of history, top 300 by 60-day median turnover
   sectors   NSE "Industry"; ranked by equal-weight 6-month (126 trading days) return; need >= 5 stocks
@@ -72,12 +77,16 @@ def fetch_day(d, isins):
         for r in csv.DictReader(io.TextIOWrapper(z.open(z.namelist()[0]), encoding="utf-8")):
             if r["TradDt"] != d.isoformat():
                 return None                                   # a repeated older file served on a holiday
-            if r["ISIN"] in isins and r["SctySrs"] in ("EQ", "BE", "BZ"):
+            if r["ISIN"] in isins and r["SctySrs"] == "EQ":    # EQ only, as in the backtest
                 out[r["ISIN"]] = (float(r["OpnPric"] or 0), float(r["ClsPric"]), float(r["PrvsClsgPric"] or 0),
                                   float(r["TtlTrfVal"] or 0), r["TckrSymb"])
         return d, out
     except Exception:
         return None
+
+
+def quarter_start(today):
+    return date(today.year, 3 * ((today.month - 1) // 3) + 1, 1)
 
 
 def next_rebalance(today):
@@ -98,13 +107,53 @@ def compute():
     members, list_source = load_members()
     isins = set(members)
     today = datetime.now(IST).date()
-    days = [today - timedelta(days=i) for i in range(0, 200) if (today - timedelta(days=i)).weekday() < 5]
+    qs = quarter_start(today)
+    span = (today - qs).days + 200                            # enough history for the quarter's signal date too
+    days = [today - timedelta(days=i) for i in range(0, span) if (today - timedelta(days=i)).weekday() < 5]
     with ThreadPoolExecutor(max_workers=16) as ex:
         got = [g for g in ex.map(lambda d: fetch_day(d, isins), days) if g]
     got.sort(key=lambda g: g[0])
-    if len(got) < LOOKBACK_DAYS + 1:
-        raise RuntimeError(f"only {len(got)} trading days could be downloaded from NSE (need {LOOKBACK_DAYS + 1}); "
-                           "NSE may be blocking this server — try again later")
+    before = [g for g in got if g[0] < qs]                    # closes up to the day before the rebalance
+    if len(before) < LOOKBACK_DAYS + 1:
+        raise RuntimeError(f"only {len(before)} trading days before {qs} could be downloaded from NSE (need "
+                           f"{LOOKBACK_DAYS + 1}); NSE may be blocking this server — try again later")
+    official, preview = run_rules(before, members), run_rules(got, members)
+    reb_day = next((g[0] for g in got if g[0] >= qs), None)
+
+    # how each official pick has done since the signal close (corporate-action safe, from daily returns)
+    after = [g for g in got if g[0] > before[-1][0]]
+    for p in official["picks"]:
+        g, last = 1.0, None
+        for d, day in after:
+            if p["isin"] in day:
+                o, c, pc, _, _ = day[p["isin"]]
+                g *= 1 + day_return(o, c, pc); last = c
+        p["since_signal"] = g - 1 if after else 0.0
+        p["latest_close"] = last if last is not None else p["close"]
+    keep = {p["symbol"] for p in official["picks"]}
+    for p in preview["picks"]:
+        p["in_portfolio"] = p["symbol"] in keep
+
+    official.update(rebalance_date=(reb_day or next_rebalance(qs - timedelta(days=1))).isoformat(),
+                    quarter_start=qs.isoformat())
+    return {
+        "generated_at": datetime.now(IST).isoformat(timespec="minutes"),
+        "next_rebalance": next_rebalance(today).isoformat(), "list_source": list_source,
+        "rules": {"lookback_days": LOOKBACK_DAYS, "sectors": N_SECTORS, "per_sector": PER_SECTOR,
+                  "universe": UNIVERSE, "min_members": MIN_MEMBERS, "min_price": MIN_PRICE},
+        "official": official, "preview": preview, "seconds": round(time.time() - t0, 1),
+    }
+
+
+def day_return(o, c, pc):
+    r = c / pc - 1 if pc > 0 else 0.0
+    if o > 0 and pc > 0 and not (-0.25 <= o / pc - 1 <= 0.35):
+        r = c / o - 1                                         # split / bonus / demerger ex-date
+    return r
+
+
+def run_rules(got, members):
+    """Applies the rules to the trading days in `got` (oldest first); the last day is the signal close."""
     dates = [g[0] for g in got]
     n = len(dates)
 
@@ -113,9 +162,7 @@ def compute():
     for i, (d, day) in enumerate(got):
         for isin, (o, c, pc, tv, sym) in day.items():
             s = series.setdefault(isin, {"ret": [None] * n, "close": [None] * n, "tv": [None] * n, "sym": sym})
-            r = c / pc - 1 if pc > 0 else None
-            if r is not None and o > 0 and not (-0.25 <= o / pc - 1 <= 0.35):
-                r = c / o - 1                                 # split / bonus / demerger ex-date
+            r = day_return(o, c, pc) if pc > 0 else None
             s["ret"][i], s["close"][i], s["tv"][i], s["sym"] = r, c, tv, sym
 
     def window_growth(rets, k):
@@ -139,7 +186,7 @@ def compute():
             g *= 1 + max(-0.6, min(1.5, r or 0.0)); path.append(g)
         daily = [r for r in s["ret"][-LOOKBACK_DAYS:] if r is not None]
         stats[isin] = {
-            "symbol": members[isin]["symbol"], "name": members[isin]["name"], "sector": members[isin]["sector"],
+            "isin": isin, "symbol": members[isin]["symbol"], "name": members[isin]["name"], "sector": members[isin]["sector"],
             "r6": window_growth(s["ret"], LOOKBACK_DAYS), "r3": window_growth(s["ret"], 63),
             "r1": window_growth(s["ret"], 21), "off_high": path[-1] / max(path) - 1,
             "vol": statistics.pstdev(daily) * (252 ** 0.5) if len(daily) > 20 else None,
@@ -176,7 +223,17 @@ def compute():
                 item["reasons"], item["flags"] = explain(item, sr, len(ranking), rank_wo[sr["sector"]])
                 picks.append(item)
             else:
+                item["gap_to_pick"] = item["rs"] - picks[-1]["rs"]     # points behind the sector's last pick
                 runners.append(item)
+
+    # closest calls: the sectors just below the cut, with the stocks they would have contributed
+    cut = ranking[N_SECTORS - 1]["r6"] if len(ranking) >= N_SECTORS else 0.0
+    next_sectors = []
+    for sr in ranking[N_SECTORS:N_SECTORS + 2]:
+        xs = sorted(by_sec[sr["sector"]], key=lambda x: -(x["r6"] - sr["r6"]))[:PER_SECTOR]
+        next_sectors.append({"sector": sr["sector"], "rank": sr["rank"], "r6": sr["r6"], "n": sr["n"],
+                             "gap": sr["r6"] - cut,
+                             "stocks": [{"symbol": x["symbol"], "r6": x["r6"], "rs": x["r6"] - sr["r6"]} for x in xs]})
 
     sec_notes = []
     for sr in ranking[:N_SECTORS]:
@@ -189,15 +246,20 @@ def compute():
                      "carrying this sector.")
         sec_notes.append(note)
 
-    return {
-        "generated_at": datetime.now(IST).isoformat(timespec="minutes"),
-        "data_through": dates[-1].isoformat(), "trading_days": n, "next_rebalance": next_rebalance(today).isoformat(),
-        "universe_size": len(uni), "sectors_ranked": len(ranking), "list_source": list_source,
-        "rules": {"lookback_days": LOOKBACK_DAYS, "sectors": N_SECTORS, "per_sector": PER_SECTOR,
-                  "universe": UNIVERSE, "min_members": MIN_MEMBERS, "min_price": MIN_PRICE},
-        "sector_ranking": ranking, "sector_notes": sec_notes, "picks": picks, "runners_up": runners,
-        "seconds": round(time.time() - t0, 1),
-    }
+    # every screened stock, for the sector-by-sector table (unranked small sectors included)
+    rank_of = {r["sector"]: r["rank"] for r in ranking}
+    picked = {p["symbol"] for p in picks}
+    screened = []
+    for sec, xs in by_sec.items():
+        avg = statistics.mean(x["r6"] for x in xs)
+        for x in sorted(xs, key=lambda x: -x["r6"]):
+            screened.append({k: x[k] for k in ("symbol", "name", "sector", "r6", "r3", "r1", "off_high", "vol",
+                                               "turnover_cr", "close")}
+                            | {"rs": x["r6"] - avg, "sector_rank": rank_of.get(sec), "picked": x["symbol"] in picked})
+
+    return {"data_through": dates[-1].isoformat(), "trading_days": n, "universe_size": len(uni),
+            "sectors_ranked": len(ranking), "sector_ranking": ranking, "sector_notes": sec_notes,
+            "picks": picks, "runners_up": runners, "next_sectors": next_sectors, "screened": screened}
 
 
 def explain(x, sr, n_sectors, rank_without_top):
@@ -244,4 +306,9 @@ class handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":      # local check: python api/picks.py
     res = compute()
-    print(json.dumps({k: v for k, v in res.items() if k not in ("sector_ranking",)}, indent=1, ensure_ascii=False)[:6000])
+    for k in ("official", "preview"):
+        r = res[k]
+        print(k, "| closes through", r["data_through"], "|", r.get("rebalance_date", ""))
+        print("  sectors:", [(s["sector"], round(s["r6"] * 100, 1), s["n"]) for s in r["sector_ranking"][:5]])
+        print("  picks:  ", [p["symbol"] for p in r["picks"]])
+    print("seconds", res["seconds"])

@@ -1,7 +1,13 @@
 {
-  "regions": ["bom1"],
+  "regions": [
+    "bom1"
+  ],
   "functions": {
     "api/picks.py": {
+      "maxDuration": 60,
+      "includeFiles": "api/data/**"
+    },
+    "api/momentum.py": {
       "maxDuration": 60,
       "includeFiles": "api/data/**"
     }

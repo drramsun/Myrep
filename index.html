@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sector Rotation Picks</title>
-<meta name="description" content="Quarterly NIFTY 500 sector-rotation picks with reasoning, computed live from NSE data.">
+<meta name="description" content="This quarter's NIFTY 500 sector-rotation portfolio with reasoning, plus a preview of what the rules would pick today.">
 <style>
   :root {
     --bg: #f7f7f5; --surface: #ffffff; --text: #1c1d1f; --muted: #6b6e75; --border: #e3e3df;
@@ -66,7 +66,67 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .error { background: var(--warn-bg); color: var(--warn); padding: 14px; border-radius: 10px; }
   .fine { color: var(--muted); font-size: 13px; }
+  .banner { background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; margin: 12px 0 4px; font-size: 14px; }
+  .since { font-size: 13px; margin: -4px 0 10px; }
+  .preview { border-style: dashed; }
+  .screen-bar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button { font: inherit; font-size: 13px; padding: 5px 12px; border: 0; background: var(--surface); color: var(--muted); cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .seg button:focus-visible, #scr-q:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #scr-q { font: inherit; font-size: 13px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 8px;
+           background: var(--bg); color: var(--text); min-width: 0; width: 180px; }
+  .screen { max-height: 70vh; overflow: auto; }
+  .screen thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; white-space: nowrap; }
+  .screen td { white-space: nowrap; }
+  .screen .sname { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+  .screen tr.grp td { background: var(--bg); font-size: 13px; padding-top: 10px; }
+  .screen tr.grp.top td { background: var(--accent-soft); }
+  .screen tr.held td { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
   .tag { font-size: 11px; background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 2px 6px; font-weight: 600; }
+  .head { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
+  .btn { font: inherit; font-size: 14px; font-weight: 600; padding: 7px 14px; border-radius: 8px; cursor: pointer;
+         border: 1px solid var(--accent); background: var(--accent); color: var(--surface); }
+  .btn:disabled { opacity: 0.45; cursor: default; }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .print-only { display: none; }
+
+  /* PDF / print: light colours, every row of every table, no scroll boxes or controls */
+  @page { size: A4; margin: 12mm 10mm; }
+  @media print {
+    :root, :root[data-theme="dark"], :root:not([data-theme="light"]) {
+      --bg: #f4f4f1; --surface: #ffffff; --text: #1c1d1f; --muted: #5f6269; --border: #dcdcd7;
+      --accent: #1f5fcc; --accent-soft: #e6eefc; --good: #1a7f37; --bad: #c62828; --warn-bg: #fff6e0; --warn: #7a5200;
+      --bar: #c9d7f2; --bar-top: #1f5fcc; color-scheme: light;
+    }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { background: #fff; font-size: 11px; }
+    main { max-width: none; padding: 0; }
+    h1 { font-size: 20px; } h2 { font-size: 14px; margin: 18px 0 8px; break-after: avoid; }
+    .btn, .screen-bar { display: none !important; }
+    .print-only { display: block; }
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .card { padding: 10px; }
+    .pick, .flags, .bar, tr { break-inside: avoid; }
+    .tablewrap, .screen { max-height: none !important; overflow: visible !important; }
+    .screen thead th { position: static; }
+    table { font-size: 9.5px; }
+    th, td { padding: 3px 5px; }
+    .screen td { white-space: normal; }
+    .screen .sname { max-width: 150px; white-space: nowrap; }
+    .screen tr.grp { break-after: avoid; }
+    .bar { grid-template-columns: 170px 1fr 56px; }
+    .fine { font-size: 9.5px; }
+    .grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .pick h3 { font-size: 13px; } .pick .name { font-size: 9.5px; margin-bottom: 6px; }
+    .kpis { grid-template-columns: repeat(2, 1fr); gap: 4px; margin: 4px 0 8px; }
+    .kpi { padding: 3px 6px; } .kpi span { font-size: 8.5px; } .kpi b { font-size: 11px; }
+    .pick ul, .flags { font-size: 9.5px; } li { margin: 2px 0; }
+    .since { font-size: 10px; margin: 0 0 6px; }
+    .screen .sname { display: inline; margin-left: 4px; font-size: 8.5px; max-width: none; }
+    .screen td.fine, .screen tr.grp .fine { font-size: 8.5px; white-space: nowrap; }
+    .screen tr.grp td { padding-top: 5px; font-size: 10px; }
+  }
   @media (max-width: 560px) {
     .bar { grid-template-columns: 110px 1fr 56px; }
     .kpis { grid-template-columns: repeat(2, 1fr); }
@@ -76,8 +136,11 @@
 </head>
 <body>
 <main>
-  <h1>Sector Rotation Picks</h1>
-  <p class="sub">NIFTY 500 · top 3 sectors by 6-month return × top 2 stocks by relative strength · rebalanced quarterly</p>
+  <div class="head">
+    <h1>Sector Rotation Picks</h1>
+    <button type="button" id="pdf" class="btn" disabled title="Opens the print dialog; choose “Save as PDF”">Download PDF</button>
+  </div>
+  <p class="sub">NIFTY 500 · top 3 sectors by 6-month return × top 2 stocks by relative strength · rebalanced quarterly · <a href="/momentum.html" style="color:var(--accent)">Momentum Top 20 →</a></p>
   <div id="app"><div class="loading"><div class="spinner"></div>Downloading 6 months of NSE prices and computing picks…<br>
     <span class="fine">The first load can take up to a minute; after that results are cached for 6 hours.</span></div></div>
 </main>
@@ -88,40 +151,46 @@ const cls = x => x >= 0 ? "pos" : "neg";
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmtDate = s => new Date(s + "T00:00:00").toLocaleDateString("en-IN", {day: "numeric", month: "short", year: "numeric"});
 
-function render(d) {
-  const daysTo = Math.round((new Date(d.next_rebalance + "T00:00:00") - new Date(new Date().toDateString())) / 864e5);
-  const maxAbs = Math.max(...d.sector_ranking.map(s => Math.abs(s.r6)), 0.01);
-  const minV = Math.min(0, ...d.sector_ranking.map(s => s.r6));
-  const span = Math.max(...d.sector_ranking.map(s => s.r6)) - minV || 1;
-  let h = `<div class="meta">
-      <span class="chip">Prices through <b>${fmtDate(d.data_through)}</b></span>
-      <span class="chip">Next rebalance <b>${fmtDate(d.next_rebalance)}</b> (${daysTo <= 0 ? "today" : "in " + daysTo + " day" + (daysTo > 1 ? "s" : "")})</span>
-      <span class="chip">Universe <b>${d.universe_size}</b> stocks · <b>${d.sectors_ranked}</b> sectors</span>
-      <span class="chip">Index list: ${esc(d.list_source)}</span></div>
-    <p class="fine">These are the stocks the rules would hold if the portfolio were rebalanced now. The rules only trade on the rebalance date; between rebalances, just hold.</p>`;
+const days = s => Math.round((new Date(s + "T00:00:00") - new Date(new Date().toDateString())) / 864e5);
 
-  h += `<h2>Picks</h2><div class="grid">`;
-  for (const p of d.picks) {
+function render(d) {
+  const o = d.official, v = d.preview, daysTo = days(d.next_rebalance);
+  const minV = Math.min(0, ...o.sector_ranking.map(s => s.r6));
+  const span = Math.max(...o.sector_ranking.map(s => s.r6)) - minV || 1;
+  let h = `<div class="meta">
+      <span class="chip">Rebalanced <b>${fmtDate(o.rebalance_date)}</b></span>
+      <span class="chip">Signal from closes through <b>${fmtDate(o.data_through)}</b></span>
+      <span class="chip">Next rebalance <b>${fmtDate(d.next_rebalance)}</b> (${daysTo <= 0 ? "today" : "in " + daysTo + " day" + (daysTo > 1 ? "s" : "")})</span>
+      <span class="chip">Universe <b>${o.universe_size}</b> stocks · <b>${o.sectors_ranked}</b> sectors</span>
+      <span class="chip">Index list: ${esc(d.list_source)}</span></div>
+    <div class="banner">This is the portfolio for the quarter. It was set from the closing prices before the
+      ${fmtDate(o.rebalance_date)} rebalance and <b>stays the same until ${fmtDate(d.next_rebalance)}</b>, however often you reload.
+      Between rebalances, just hold.</div>`;
+
+  h += `<h2>This quarter's portfolio</h2><div class="grid">`;
+  for (const p of o.picks) {
     h += `<div class="card pick">
       <h3><span>${esc(p.symbol)}</span><span class="big ${cls(p.r6)}">${pct(p.r6)} <span class="fine">6m</span></span></h3>
-      <div class="name">${esc(p.name)} · <span class="tag">${esc(p.sector)}</span> · ₹${p.close.toLocaleString("en-IN")}</div>
+      <div class="name">${esc(p.name)} · <span class="tag">${esc(p.sector)}</span> · signal close ₹${p.close.toLocaleString("en-IN")}</div>
       <div class="kpis">
         <div class="kpi"><span>vs sector</span><b class="${cls(p.rs)}">${(p.rs >= 0 ? "+" : "") + (p.rs * 100).toFixed(0)} pts</b></div>
         <div class="kpi"><span>3 months</span><b class="${cls(p.r3)}">${pct(p.r3)}</b></div>
         <div class="kpi"><span>1 month</span><b class="${cls(p.r1)}">${pct(p.r1)}</b></div>
         <div class="kpi"><span>From 6m high</span><b class="${cls(p.off_high + 0.0001)}">${pct(p.off_high)}</b></div>
       </div>
+      <div class="since">Since the signal close: <b class="${cls(p.since_signal)}">${pct(p.since_signal)}</b>
+        · now ₹${p.latest_close.toLocaleString("en-IN")} <span class="fine">(${fmtDate(v.data_through)})</span></div>
       <ul>${p.reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul>
       ${p.flags.length ? `<div class="flags"><b>Watch out</b><ul>${p.flags.map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>` : ""}
     </div>`;
   }
   h += `</div>`;
 
-  h += `<h2>Why these sectors</h2><div class="card">${d.sector_notes.map(n =>
+  h += `<h2>Why these sectors</h2><div class="card">${o.sector_notes.map(n =>
         `<p class="secnote ${n.includes("Caution") ? "warn" : ""}">${esc(n)}</p>`).join("")}</div>`;
 
-  h += `<h2>Sector ranking <span class="fine">(average 6-month return of the sector's stocks in the universe)</span></h2><div class="card bars">`;
-  for (const s of d.sector_ranking) {
+  h += `<h2>Sector ranking <span class="fine">(at the signal close, ${fmtDate(o.data_through)})</span></h2><div class="card bars">`;
+  for (const s of o.sector_ranking) {
     const left = ((Math.min(0, s.r6) - minV) / span) * 100, width = (Math.abs(s.r6) / span) * 100;
     h += `<div class="bar ${s.rank <= d.rules.sectors ? "top" : ""}">
       <span class="label">${s.rank}. ${esc(s.sector)} <span class="fine">(${s.n})</span></span>
@@ -130,20 +199,122 @@ function render(d) {
   }
   h += `</div>`;
 
-  h += `<h2>Next in line <span class="fine">(would be picked if a pick drops out)</span></h2><div class="card tablewrap"><table>
-    <tr><th>Stock</th><th>Sector</th><th class="n">6m</th><th class="n">vs sector</th><th class="n">3m</th><th class="n">From high</th></tr>
-    ${d.runners_up.map(r => `<tr><td><b>${esc(r.symbol)}</b></td><td>${esc(r.sector)}</td><td class="n ${cls(r.r6)}">${pct(r.r6)}</td>
-      <td class="n ${cls(r.rs)}">${(r.rs * 100).toFixed(0)} pts</td><td class="n ${cls(r.r3)}">${pct(r.r3)}</td><td class="n">${pct(r.off_high)}</td></tr>`).join("")}
-  </table></div>`;
+  const held3 = o.sector_ranking[d.rules.sectors - 1];
+  const pts = x => (x >= 0 ? "+" : "−") + Math.abs(x * 100).toFixed(1) + " pts";
+  h += `<h2>Closest calls <span class="fine">(at the signal close: what nearly made the portfolio)</span></h2>
+    <div class="card">
+    <p class="fine" style="margin-top:0">Sectors just below the cut. #${held3.rank} ${esc(held3.sector)} got the last place with ${pct(held3.r6)}.</p>
+    <div class="tablewrap"><table>
+      <tr><th>Sector</th><th class="n">Average 6m</th><th class="n">Behind #${held3.rank}</th><th>Its top 2 stocks would have been</th></tr>
+      ${o.next_sectors.map(s => `<tr><td>#${s.rank} ${esc(s.sector)} <span class="fine">(${s.n})</span></td>
+        <td class="n ${cls(s.r6)}">${pct(s.r6)}</td><td class="n">${pts(s.gap)}</td>
+        <td>${s.stocks.map(x => `<b>${esc(x.symbol)}</b> <span class="${cls(x.r6)}">${pct(x.r6)}</span>`).join(" · ")}</td></tr>`).join("")}
+    </table></div>
+    <p class="fine" style="margin-top:14px">Stocks just below the cut in each held sector, ranked by how far they beat their sector. A small gap means the pick was a close call.
+      In a small sector the next stock can be far behind and even negative; that doesn't mean the ranking is wrong.</p>
+    <div class="tablewrap"><table>
+      <tr><th>Stock</th><th>Sector</th><th class="n">6m</th><th class="n">vs sector</th><th class="n">Behind last pick</th><th class="n">3m</th><th class="n">From high</th></tr>
+      ${o.runners_up.filter(r => r.rank_in_sector === d.rules.per_sector + 1).map(r => `<tr><td><b>${esc(r.symbol)}</b></td><td>${esc(r.sector)}</td>
+        <td class="n ${cls(r.r6)}">${pct(r.r6)}</td><td class="n ${cls(r.rs)}">${(r.rs >= 0 ? "+" : "") + (r.rs * 100).toFixed(0)} pts</td>
+        <td class="n">${pts(r.gap_to_pick)}</td><td class="n ${cls(r.r3)}">${pct(r.r3)}</td><td class="n">${pct(r.off_high)}</td></tr>`).join("")}
+    </table></div>
+    <p class="fine" style="margin-bottom:0">None of these replace a pick during the quarter. If a holding is merged or delisted, the rules hold the cash until the next rebalance.</p>
+    </div>`;
+
+  h += `<h2>Screened stocks <span class="fine">(all ${o.universe_size} in the universe, by sector, highest 6-month return first)</span></h2>
+    <div class="card">
+      <div class="screen-bar">
+        <div class="seg" role="group" aria-label="Prices as of">
+          <button type="button" id="scr-reb" aria-pressed="true">At rebalance (${fmtDate(o.data_through)})</button>
+          <button type="button" id="scr-now" aria-pressed="false">Today (${fmtDate(v.data_through)})</button>
+        </div>
+        <input id="scr-q" type="search" placeholder="Find a stock" aria-label="Find a stock">
+      </div>
+      <p class="print-only fine" id="scr-asof"></p>
+      <div class="tablewrap screen"><table id="scr-table"></table></div>
+      <p class="fine" style="margin-bottom:0"><span class="tag">held</span> = in this quarter's portfolio. "vs sector" = 6-month return minus the sector average.
+        Notes: <b>extended</b> up more than 150% in 6 months · <b>fading</b> more than 15% below its 6-month high ·
+        <b>weak 1m</b> down more than 8% in a month · <b>volatile</b> more than 60% a year. Sectors with fewer than ${d.rules.min_members} stocks are screened but not ranked.</p>
+    </div>`;
+
+  const nNew = v.picks.filter(p => !p.in_portfolio).length;
+  h += `<h2>Preview: if the rules ran today <span class="fine">(closes through ${fmtDate(v.data_through)})</span></h2>
+    <div class="card preview">
+    <p class="fine" style="margin-top:0">For information only. <b>Don't trade on this.</b> It changes from day to day as prices move;
+      the rules only trade on the rebalance date. ${nNew ? `Right now ${nNew} of the 6 would differ from the portfolio.` : "Right now it matches the portfolio."}
+      Top sectors today: ${v.sector_ranking.slice(0, d.rules.sectors).map(s => `${esc(s.sector)} (${pct(s.r6)})`).join(", ")}.</p>
+    <div class="tablewrap"><table>
+    <tr><th>Stock</th><th>Sector</th><th class="n">6m</th><th class="n">vs sector</th><th></th></tr>
+    ${v.picks.map(p => `<tr><td><b>${esc(p.symbol)}</b></td><td>${esc(p.sector)}</td><td class="n ${cls(p.r6)}">${pct(p.r6)}</td>
+      <td class="n ${cls(p.rs)}">${(p.rs * 100).toFixed(0)} pts</td>
+      <td>${p.in_portfolio ? `<span class="fine">in portfolio</span>` : `<span class="tag">not held</span>`}</td></tr>`).join("")}
+    </table></div></div>`;
 
   h += `<h2>Rules</h2><div class="card"><ul>
-    <li>Universe: NIFTY 500 stocks priced at ₹${d.rules.min_price} or more with 6 months of history; the ${d.rules.universe} most traded (60-day median turnover).</li>
+    <li>Universe: NIFTY 500 stocks in NSE's EQ series priced at ₹${d.rules.min_price} or more with 6 months of history; the ${d.rules.universe} most traded (60-day median turnover). Trade-for-trade (BE/BZ) stocks are left out, as in the backtest.</li>
     <li>Sectors: NSE industry groups with at least ${d.rules.min_members} stocks, ranked by the average ${d.rules.lookback_days}-trading-day (6-month) return.</li>
     <li>Picks: top ${d.rules.sectors} sectors; in each, the ${d.rules.per_sector} stocks that beat their sector by the most. Equal weight; hold for the quarter.</li>
-    <li>Rebalance on the first trading day of January, April, July and October.</li></ul>
+    <li>Rebalance on the first trading day of January, April, July and October, using closes up to the trading day before.</li></ul>
     <p class="fine">Backtest Oct 2022 to Sep 2026 (point-in-time NIFTY 500): about +45% a year against +21% for an equal-weight benchmark in 2023–25, but all of that edge came in 2023–24. Over the last 12 months it made +14% against +7.5%, and its worst fall was −34%. Past results don't predict future ones. Excludes taxes (20% short-term capital gains) and dividends.</p>
     <p class="fine">This page is the output of a rule-based model, not investment advice. Data: NSE bhavcopies and NSE Indices constituent lists; generated ${esc(d.generated_at.replace("T", " "))} IST in ${d.seconds}s.</p></div>`;
   $("#app").innerHTML = h;
+
+  const held = new Set(o.picks.map(p => p.symbol));
+  const heldSec = new Set(o.picks.map(p => p.sector));
+  let src = o;
+  const drawScreen = () => {
+    const q = $("#scr-q").value.trim().toUpperCase();
+    const rank = Object.fromEntries(src.sector_ranking.map(s => [s.sector, s]));
+    const groups = {};
+    for (const x of src.screened) (groups[x.sector] ||= []).push(x);
+    const avg = xs => xs.reduce((a, x) => a + x.r6, 0) / xs.length;
+    const order = Object.keys(groups).sort((a, b) =>
+      (rank[a]?.rank ?? 999) - (rank[b]?.rank ?? 999) || avg(groups[b]) - avg(groups[a]));
+    let t = `<thead><tr><th>Stock</th><th class="n">6m</th><th class="n">vs sector</th><th class="n">3m</th><th class="n">1m</th>
+      <th class="n">From 6m high</th><th class="n">Turnover ₹cr/day</th><th class="n">Volatility</th><th class="n">Price ₹</th><th>Notes</th></tr></thead>`;
+    for (const sec of order) {
+      const xs = groups[sec].filter(x => !q || x.symbol.includes(q) || x.name.toUpperCase().includes(q));
+      if (!xs.length) continue;
+      const r = rank[sec], top = heldSec.has(sec);
+      t += `<tbody><tr class="grp ${top ? "top" : ""}"><td colspan="10">${r ? `#${r.rank}` : "Not ranked"} · <b>${esc(sec)}</b>
+        <span class="fine">· ${groups[sec].length} stock${groups[sec].length > 1 ? "s" : ""} · average 6m ${pct(avg(groups[sec]))}${top ? " · held sector" : ""}</span></td></tr>`;
+      for (const x of xs) {
+        const notes = [x.r6 > 1.5 && "extended", x.off_high < -0.15 && "fading", x.r1 < -0.08 && "weak 1m", x.vol > 0.6 && "volatile"].filter(Boolean);
+        t += `<tr${held.has(x.symbol) ? ` class="held"` : ""}><td><b>${esc(x.symbol)}</b>${held.has(x.symbol) ? ` <span class="tag">held</span>` : ""}
+          <div class="fine sname">${esc(x.name)}</div></td>
+          <td class="n ${cls(x.r6)}">${pct(x.r6)}</td><td class="n ${cls(x.rs)}">${(x.rs >= 0 ? "+" : "") + (x.rs * 100).toFixed(0)} pts</td>
+          <td class="n ${cls(x.r3)}">${pct(x.r3)}</td><td class="n ${cls(x.r1)}">${pct(x.r1)}</td><td class="n">${pct(x.off_high)}</td>
+          <td class="n">${Math.round(x.turnover_cr).toLocaleString("en-IN")}</td><td class="n">${x.vol ? (x.vol * 100).toFixed(0) + "%" : "–"}</td>
+          <td class="n">${x.close.toLocaleString("en-IN")}</td><td class="fine">${notes.join(", ")}</td></tr>`;
+      }
+      t += `</tbody>`;
+    }
+    $("#scr-table").innerHTML = t;
+  };
+  const setSrc = (which) => {
+    src = which === "now" ? v : o;
+    $("#scr-reb").setAttribute("aria-pressed", which !== "now");
+    $("#scr-now").setAttribute("aria-pressed", which === "now");
+    $("#scr-asof").textContent = which === "now"
+      ? `Prices as of ${fmtDate(v.data_through)} (today's closes; for information only).`
+      : `Prices as of the rebalance signal close, ${fmtDate(o.data_through)}.`;
+    drawScreen();
+  };
+  $("#scr-reb").onclick = () => setSrc("reb");
+  $("#scr-now").onclick = () => setSrc("now");
+  $("#scr-q").oninput = drawScreen;
+  setSrc("reb");
+
+  const btn = $("#pdf");
+  btn.disabled = false;
+  btn.onclick = () => {
+    const q = $("#scr-q");
+    if (q.value) { q.value = ""; drawScreen(); }          // a PDF should hold the whole table, not a search result
+    const title = document.title;
+    document.title = `Sector Rotation Picks ${o.rebalance_date}`;   // suggested file name
+    window.print();
+    document.title = title;
+  };
 }
 
 fetch("/api/picks").then(r => r.json()).then(d => {
