@@ -1,5 +1,5 @@
 """
-GET /api/momentum[?hold=SYM1,SYM2,...] -> JSON with this month's NIFTY 500 momentum portfolio.
+GET /api/momentum -> JSON with this month's NIFTY 500 momentum ranking; the page applies the rules to your holdings.
 
 Rules (the winner of smallcase_momentum/tune.py; see smallcase_momentum/README.md):
   universe  NIFTY 500 members, EQ series, price >= Rs 20, traded on >= 230 of the last 252 days,
@@ -11,7 +11,8 @@ Rules (the winner of smallcase_momentum/tune.py; see smallcase_momentum/README.m
             added nothing in the backtest). The latest close is also screened, as a watch list only.
   sizing    the page splits capital between the strategy and a liquid fund (default 60/40), reset monthly
 
-hold = the stocks you hold now (NSE symbols). Without it, the answer is the plain top 20 (a fresh start).
+The answer does not depend on anyone's holdings, so one cached copy serves every visitor. The page keeps your
+holdings in the browser and applies the keep / sell / buy rule itself (decide() is the same rule, for the CLI).
 
 Data, fetched live on each (cache-missed) request; no database, no keys, standard library only:
   * NIFTY 500 list: niftyindices.com (falls back to the bundled copy in data/)
@@ -31,10 +32,10 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler
-from urllib.parse import parse_qs, urlparse
 
 TOP, KEEP_RANK, LONG, SKIP = 20, 40, 273, 21          # 12 months (252 + skip) back to 1 month back
 MIN_PRICE, MIN_TURNOVER, TURNOVER_DAYS, HIST_DAYS, HIST_MIN = 20.0, 1e7, 60, 252, 230
+SHOW = 100                                             # ranked stocks shown on the page
 BENCH = "NIFTYBEES"                                    # Nifty 50 ETF, for the equity-curve comparison
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
       "Accept": "*/*"}
@@ -192,7 +193,9 @@ def decide(ranked, holdings):
     return keep, sell, buy, portfolio
 
 
-def compute(holdings):
+def compute():
+    """everything the page needs, independent of anyone's holdings (the page applies the rule to them),
+    so one cached answer serves every visitor."""
     t0 = time.time()
     members, list_source = load_members()
     isins = set(members)
@@ -210,29 +213,17 @@ def compute(holdings):
         raise RuntimeError(f"only {k_off + 1} trading days up to last month end could be downloaded from NSE "
                            f"(need {LONG + 1}); NSE may be blocking this server, try again later")
     series = build_series(got, members)
-    unknown = [h for h in holdings if h not in sym_isin]
-
     official = rank_at(series, members, dates, k_off)
-    keep, sell, buy, portfolio = decide(official, holdings)
+    latest = rank_at(series, members, dates, len(dates) - 1)
     trade_day = dates[k_off + 1] if k_off + 1 < len(dates) else None
 
-    # since the trade day: how the portfolio's stocks have moved (corporate-action safe)
-    for x in portfolio:
-        s = series.get(x["isin"])
-        x["since_trade"] = (s["g"][-1] / s["g"][k_off + 1] - 1) if s and trade_day else 0.0
-        x["latest_close"] = next((c for c in reversed(s["close"]) if c), x["close"]) if s else x["close"]
+    # this month's portfolio always sits inside the top KEEP_RANK (kept stocks rank <= 40, buys fill from the top)
+    for x in official[:SHOW]:
+        s = series[x["isin"]]
+        x["latest_close"] = next((c for c in reversed(s["close"]) if c), x["close"])
+        x["since_trade"] = (s["g"][-1] / s["g"][k_off + 1] - 1) if trade_day else 0.0
+    curve = equity_curve(series, dates, k_off, official[:KEEP_RANK], {x["isin"] for x in official})
 
-    curve = equity_curve(series, dates, k_off, portfolio, {x["isin"] for x in official})
-
-    latest = rank_at(series, members, dates, len(dates) - 1)
-    rank_now = {x["symbol"]: x for x in latest}
-    watch = []
-    for x in portfolio:
-        y = rank_now.get(x["symbol"])
-        r = y["rank"] if y else None
-        status = ("would be sold" if r is None or r > KEEP_RANK else "at risk" if r > 30 else "fine")
-        watch.append({"symbol": x["symbol"], "rank_month_end": x["rank"], "rank_now": r, "status": status,
-                      "score_now": y["score"] if y else None})
     nxt = last_weekday_of_month(today)
     if nxt <= dates[-1]:
         nxt = last_weekday_of_month(date(today.year + today.month // 12, today.month % 12 + 1, 1))
@@ -243,28 +234,28 @@ def compute(holdings):
                   "min_price": MIN_PRICE, "min_turnover_cr": MIN_TURNOVER / 1e7},
         "signal_date": dates[k_off].isoformat(), "trade_date": trade_day.isoformat() if trade_day else None,
         "data_through": dates[-1].isoformat(), "next_signal": nxt.isoformat(), "trading_days": len(dates),
-        "holdings_in": holdings, "unknown_symbols": unknown, "fresh_start": not holdings,
-        "official": {"universe": len(official), "keep": slim(keep), "sell": slim(sell), "buy": slim(buy),
-                     "portfolio": slim(portfolio), "ranking": slim(official)},
-        "latest": {"universe": len(latest), "watch": watch, "ranking": slim(latest)},
+        "members": sorted(sym_isin),
+        "official": {"universe": len(official), "ranking": slim(official[:SHOW]),
+                     "ranks": {x["symbol"]: [x["rank"], round(x["score"], 4)] for x in official}},
+        "latest": {"universe": len(latest), "ranking": slim(latest[:SHOW]),
+                   "ranks": {x["symbol"]: x["rank"] for x in latest}},
         "curve": curve,
         "seconds": round(time.time() - t0, 1),
     }
 
 
-def equity_curve(series, dates, k_off, portfolio, universe):
-    """growth since the trade-day close (the rebalance): this month's portfolio held equal weight and left to drift,
-    against an equal-weight NIFTY 500 (the screened universe, rebalanced daily) and the Nifty 50 ETF.
-    Costs and the liquid share are left out; the page applies the split."""
+def equity_curve(series, dates, k_off, candidates, universe):
+    """growth since the trade-day close (the rebalance) for every stock a portfolio can hold this month, plus an
+    equal-weight NIFTY 500 (the screened universe, rebalanced daily) and the Nifty 50 ETF. The page averages the
+    stocks of the user's portfolio. Costs and the liquid share are left out; the page applies the split."""
     t0 = k_off + 1
     if t0 >= len(dates):
         return None
     idx = range(t0, len(dates))
     pos = {}
-    for x in portfolio:
+    for x in candidates:
         g = series[x["isin"]]["g"]
         pos[x["symbol"]] = [round(g[i] / g[t0], 6) for i in idx]
-    port = [sum(v[j] for v in pos.values()) / len(pos) for j in range(len(idx))] if pos else []
     ew, e = [], 1.0
     for i in idx:
         if i > t0:
@@ -273,48 +264,43 @@ def equity_curve(series, dates, k_off, portfolio, universe):
         ew.append(round(e, 6))
     b = series.get(BENCH)
     nifty = [round(b["g"][i] / b["g"][t0], 6) for i in idx] if b else None
-    return {"dates": [dates[i].isoformat() for i in idx], "portfolio": [round(v, 6) for v in port],
-            "ew_nifty500": ew, "nifty50": nifty, "positions": pos}
-
-
-def parse_holdings(path):
-    q = parse_qs(urlparse(path).query).get("hold", [""])[0]
-    syms = [s.strip().upper() for s in q.replace(" ", ",").split(",") if s.strip()]
-    return sorted(set(syms))
+    return {"dates": [dates[i].isoformat() for i in idx], "ew_nifty500": ew, "nifty50": nifty, "positions": pos}
 
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        hold = parse_holdings(self.path)
-        key = ",".join(hold)
         try:
-            c = _CACHE.get(key)
-            if not c or time.time() - c[0] > 6 * 3600:
-                c = _CACHE[key] = (time.time(), json.dumps(compute(hold)).encode())
-            body, code = c[1], 200
+            if not _CACHE.get("body") or time.time() - _CACHE["t"] > 6 * 3600:
+                _CACHE["body"], _CACHE["t"] = json.dumps(compute()).encode(), time.time()
+            body, code = _CACHE["body"], 200
         except Exception as e:
             body, code = json.dumps({"error": str(e)}).encode(), 502
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        if code == 200:   # let Vercel's CDN serve the same answer for 6 h, then refresh in the background
+        if code == 200:   # Vercel's CDN serves the same answer for 6 h, then refreshes in the background
             self.send_header("Cache-Control", "public, max-age=0, s-maxage=21600, stale-while-revalidate=86400")
         self.end_headers()
         self.wfile.write(body)
 
 
-if __name__ == "__main__":      # local check: python api/momentum.py [SYM1,SYM2,...]
+if __name__ == "__main__":      # local check: python api/momentum.py "SYM1 SYM2 ..."
     import sys
-    res = compute(parse_holdings("?hold=" + (sys.argv[1] if len(sys.argv) > 1 else "")))
+    res = compute()
+    arg = sys.argv[1] if len(sys.argv) > 1 else ""
+    hold = sorted({h.strip().upper() for h in arg.replace(" ", ",").split(",") if h.strip()})
     o = res["official"]
+    rows = {x["symbol"]: x for x in o["ranking"]}
+    full = [dict(rows.get(sym, {"symbol": sym}), rank=r, score=sc)
+            for sym, (r, sc) in sorted(o["ranks"].items(), key=lambda kv: kv[1][0])]
+    keep, sell, buy, portfolio = decide(full, hold)
     print("signal", res["signal_date"], "trade", res["trade_date"], "data through", res["data_through"],
           "| days", res["trading_days"], "| universe", o["universe"], "| seconds", res["seconds"])
-    print("portfolio:", " ".join(f"{x['symbol']}({x['rank']})" for x in o["portfolio"]))
-    print("sell:", [(x["symbol"], x["reason"]) for x in o["sell"]])
-    print("buy: ", [x["symbol"] for x in o["buy"]])
-    print("watch:", [(w["symbol"], w["rank_now"], w["status"]) for w in res["latest"]["watch"]])
+    print("portfolio:", " ".join(f"{x['symbol']}({x['rank']})" for x in portfolio))
+    print("sell:", [(x["symbol"], x["reason"]) for x in sell])
+    print("buy: ", [x["symbol"] for x in buy])
     c = res["curve"]
     if c:
-        print("curve:", c["dates"][0], "->", c["dates"][-1], "| portfolio", round(c["portfolio"][-1] - 1, 4),
+        port = [sum(c["positions"][x["symbol"]][j] for x in portfolio) / len(portfolio) for j in range(len(c["dates"]))]
+        print("curve:", c["dates"][0], "->", c["dates"][-1], "| portfolio", round(port[-1] - 1, 4),
               "| EW N500", round(c["ew_nifty500"][-1] - 1, 4), "| Nifty 50", c["nifty50"] and round(c["nifty50"][-1] - 1, 4))
-    print("ranking rows:", len(res["official"]["ranking"]), len(res["latest"]["ranking"]), "| json KB",
-          len(json.dumps(res)) // 1024)
+    print("ranking rows:", len(o["ranking"]), len(res["latest"]["ranking"]), "| json KB", len(json.dumps(res)) // 1024)

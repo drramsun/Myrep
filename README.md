@@ -57,19 +57,21 @@ The live version of the rule picked in `../smallcase_momentum/` (tune.py and siz
 - **Watch list:** the latest close is also ranked, for information only.
 - **Sizing:** the page splits capital between the strategy and a liquid fund (default 60/40), with share counts at the latest close.
 
-**Holdings.** The function has no database:
-- Type your holdings on the page; they are kept in your browser's localStorage and sent as `?hold=SYM1,SYM2`.
+**Holdings.** There is no database, and holdings never reach the server:
+- The function returns one answer for everyone: the top 100 in full, every eligible stock's rank, and the curves.
+- The page applies the keep / sell / buy rule in the browser, so *Check my holdings* is instant.
+- Holdings are saved in the browser's localStorage as you type, and reload on the next visit. They are kept per site address and per browser, so a Vercel preview URL or another device starts empty.
 - After trading, press *Save the new portfolio as my holdings*, so next month's check starts from them.
-- With no holdings, it returns the plain top 20 (a fresh start).
+- With no holdings, the page shows the plain top 20 (a fresh start).
 
 **P&L since the rebalance.** The page draws an equity curve from the trade-day close to the latest close:
 - This month's portfolio (equal amounts, left to drift), against an equal-weight NIFTY 500 and NIFTYBEES.
 - Pick any date with the slider (or click the chart) to see the portfolio's return, P&L per stock, and P&L in ₹ for your capital and split. The liquid share is assumed to earn 6% a year.
 - The curve is before costs and tax.
 
-**Downloads (CSV):** the full ranking (all ~470 eligible stocks, month-end or latest), this month's trades, and the daily P&L since the rebalance (portfolio, benchmarks, and each stock).
+**Download PDF** prints the whole page (trades, curve, sizing, watch list, top-100 table) through the browser's *Save as PDF*, in light colours with no scroll boxes, as on the sector page.
 
-**Data.** Each cache miss downloads about 310 daily bhavcopies (about 15 months), which takes about 16 s locally. The function is allowed 60 s. Responses are cached for 6 h per holdings list.
+**Data.** Each cache miss downloads about 310 daily bhavcopies (about 15 months), which takes about 13–16 s locally. The function is allowed 60 s. The one response is cached for 6 h.
 
 **Rows are matched on ISIN *or* symbol.** A face-value split gives a stock a new ISIN, and a rename gives it a new symbol, so either one is enough to keep its history (MCX's split, for example).
 

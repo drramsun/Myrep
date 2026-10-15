@@ -10,7 +10,7 @@
     --bg: #f7f7f5; --surface: #ffffff; --text: #1c1d1f; --muted: #6b6e75; --border: #e3e3df;
     --accent: #1f6feb; --accent-soft: #e8f0fe; --good: #1a7f37; --bad: #c62828; --warn-bg: #fff6e0; --warn: #8a5a00;
     --good-soft: #e6f4ea; --bad-soft: #fdecea;
-    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --grid: #ececE8; --axis: #b9bab4;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --grid: #ecece8; --axis: #b9bab4;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -31,9 +31,10 @@
          font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
   a { color: var(--accent); }
-  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h1 { font-size: 26px; margin: 0; letter-spacing: -0.01em; }
   h2 { font-size: 17px; margin: 32px 0 12px; }
   h3 { font-size: 15px; margin: 0 0 8px; }
+  .head { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; margin-bottom: 4px; }
   .sub { color: var(--muted); margin: 0 0 16px; }
   .nav { font-size: 13px; margin-bottom: 16px; }
   .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
@@ -51,7 +52,7 @@
   .list li { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
   .list li:last-child { border-bottom: 0; }
   .list .why { color: var(--muted); font-size: 12px; }
-  .empty { color: var(--muted); font-size: 14px; }
+  .empty { color: var(--muted); font-size: 14px; margin: 0; }
   textarea, input[type=number] { font: inherit; font-size: 14px; color: var(--text); background: var(--bg);
            border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; width: 100%; }
   textarea { min-height: 64px; resize: vertical; }
@@ -59,7 +60,9 @@
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
   button { font: inherit; font-size: 14px; border-radius: 8px; padding: 6px 14px; cursor: pointer;
            border: 1px solid var(--border); background: var(--surface); color: var(--text); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary, .btn { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; }
+  .btn { padding: 7px 14px; }
+  button:disabled { opacity: 0.45; cursor: default; }
   .sizing { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }
   .sizing label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
@@ -83,9 +86,6 @@
   .fine { color: var(--muted); font-size: 13px; }
   .fine ul { padding-left: 18px; } .fine li { margin: 4px 0; }
   .total td { font-weight: 600; }
-  .h2row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; justify-content: space-between; margin: 32px 0 12px; }
-  .h2row h2 { margin: 0; }
-  button.small { font-size: 13px; padding: 4px 10px; }
   .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
   .legend i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 6px; border-radius: 1px; }
   .chartbox { position: relative; }
@@ -102,24 +102,55 @@
   .readout span { display: block; font-size: 12px; color: var(--muted); }
   .readout b { font-size: 16px; font-variant-numeric: tabular-nums; }
   .asof { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; font-size: 13px; margin-top: 8px; }
+  .print-only { display: none; }
+
+  /* PDF / print: light colours, every row of every table, no scroll boxes or controls */
+  @page { size: A4; margin: 12mm 10mm; }
+  @media print {
+    :root, :root[data-theme="dark"], :root:not([data-theme="light"]) {
+      --bg: #f4f4f1; --surface: #ffffff; --text: #1c1d1f; --muted: #5f6269; --border: #dcdcd7;
+      --accent: #1f5fcc; --accent-soft: #e6eefc; --good: #1a7f37; --bad: #c62828; --warn-bg: #fff6e0; --warn: #7a5200;
+      --good-soft: #e6f4ea; --bad-soft: #fdecea;
+      --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --grid: #ecece8; --axis: #b9bab4; color-scheme: light;
+    }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { background: #fff; font-size: 11px; }
+    main { max-width: none; padding: 0; }
+    h1 { font-size: 20px; } h2 { font-size: 14px; margin: 16px 0 8px; break-after: avoid; }
+    .nav, .btn, .no-print, .seg, button, textarea, input, .tip, #hov { display: none !important; }
+    .print-only { display: block; }
+    .card { padding: 10px; }
+    .cols { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .list li { font-size: 10px; padding: 3px 0; } .list .why { font-size: 9px; }
+    .tablewrap { max-height: none !important; overflow: visible !important; }
+    th { position: static; }
+    table { font-size: 9.5px; } th, td { padding: 3px 5px; }
+    tr, .readout, .chartbox, .list li { break-inside: avoid; }
+    .readout b { font-size: 12px; }
+    .fine { font-size: 9.5px; }
+  }
 </style>
 </head>
 <body>
 <main>
   <div class="nav"><a href="/">← Sector Rotation Picks</a></div>
-  <h1>Momentum Top 20</h1>
+  <div class="head">
+    <h1>Momentum Top 20</h1>
+    <button type="button" id="pdf" class="btn" disabled title="Opens the print dialog; choose “Save as PDF”">Download PDF</button>
+  </div>
   <p class="sub">NIFTY 500 stocks ranked by 12-month return (skipping the last month). Hold the top 20; keep a stock while it
     ranks 40 or better. Screened on the last close of each month, traded the next trading day.</p>
 
   <div class="card">
     <h3>Your current holdings</h3>
-    <p class="fine" style="margin:0 0 6px">NSE symbols, separated by spaces or commas. Leave empty for a fresh start (buy the top 20).
-      Saved in this browser only.</p>
-    <textarea id="hold" placeholder="e.g. MCX NETWEB ACUTAAS" aria-label="Current holdings"></textarea>
-    <div class="row">
+    <p class="fine no-print" style="margin:0 0 6px">NSE symbols, separated by spaces or commas. Leave empty for a fresh start (buy the top 20).
+      Saved in this browser as you type, so they're here when you come back on this device.</p>
+    <textarea id="hold" placeholder="e.g. MCX NETWEB ACUTAAS" aria-label="Current holdings" spellcheck="false"></textarea>
+    <p class="print-only" id="hold-print"></p>
+    <div class="row no-print">
       <button class="primary" id="apply">Check my holdings</button>
       <button id="fresh">Fresh start</button>
-      <span class="fine" id="holdmsg"></span>
+      <span class="fine" id="holdmsg" role="status"></span>
     </div>
   </div>
 
@@ -133,25 +164,72 @@ const inr = x => "₹" + Math.round(x).toLocaleString("en-IN");
 const fmtDate = s => s ? new Date(s + "T00:00:00").toLocaleDateString("en-IN", {day: "numeric", month: "short", year: "numeric"}) : "–";
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch { return false; } },
 };
-const parseHold = s => [...new Set(s.toUpperCase().split(/[\s,;]+/).filter(Boolean))].sort();
+const parseHold = s => [...new Set(String(s).toUpperCase().split(/[\s,;]+/).filter(Boolean))].sort();
 
-let data = null, view = "official";
+let data = null, view = "official", asof = null, plan = null, curve = null;
+
+// ---------- holdings: kept in this browser; the rules run here, no server round trip ----------
 $("#hold").value = store.get("mom_holdings", "");
+let _sv;
+$("#hold").addEventListener("input", () => {
+  clearTimeout(_sv);
+  _sv = setTimeout(() => {
+    $("#holdmsg").textContent = store.set("mom_holdings", $("#hold").value.trim()) ? "Saved in this browser." : storageMsg;
+  }, 300);
+});
+const storageMsg = "This browser blocks storage (private mode?), so holdings won't be remembered.";
+const saveHold = () => {
+  const ok = store.set("mom_holdings", parseHold($("#hold").value).join(" "));
+  $("#holdmsg").textContent = ok ? "" : storageMsg;
+  return ok;
+};
+$("#apply").onclick = () => {
+  saveHold();
+  if (data) { asof = null; render(); $("#trades").scrollIntoView({behavior: "smooth"}); }
+};
+$("#fresh").onclick = () => { $("#hold").value = ""; saveHold(); if (data) { asof = null; render(); } };
+
+function decide(holdings) {
+  const o = data.official, K = data.rules.keep_rank, N = data.rules.top;
+  const row = Object.fromEntries(o.ranking.map(x => [x.symbol, x]));
+  const members = new Set(data.members);
+  const keep = [], sell = [];
+  for (const sym of holdings) {
+    const r = o.ranks[sym];
+    if (!r) sell.push({symbol: sym, rank: null, reason: members.has(sym)
+      ? "not eligible any more (moved out of the EQ series, too illiquid, under ₹20, or too little history)"
+      : "not in today's NIFTY 500 list (left the index, or check the spelling)"});
+    else if (r[0] > K) sell.push({symbol: sym, rank: r[0], score: r[1], reason: `rank ${r[0]} is below ${K}`});
+    else keep.push({...row[sym], reason: `rank ${r[0]} is within the top ${K}`});
+  }
+  keep.sort((a, b) => a.rank - b.rank);
+  keep.splice(N).forEach(x => sell.push({...x, reason: `more than ${N} holdings entered; rank ${x.rank} is among the weakest`}));
+  const held = new Set(keep.map(x => x.symbol)), buy = [];
+  for (const x of o.ranking) {
+    if (keep.length + buy.length >= N) break;
+    if (!held.has(x.symbol)) buy.push({...x, reason: `rank ${x.rank}: the best-ranked stock not held`});
+  }
+  return {keep, sell, buy, portfolio: [...keep, ...buy].sort((a, b) => a.rank - b.rank), fresh: !holdings.length};
+}
 
 function load() {
-  const hold = parseHold($("#hold").value);
-  store.set("mom_holdings", hold.join(" "));
-  $("#out").innerHTML = `<div class="loading"><div class="spinner"></div>Downloading about 15 months of NSE prices (15–30 seconds on the first load)…</div>`;
-  fetch("/api/momentum" + (hold.length ? "?hold=" + encodeURIComponent(hold.join(",")) : ""))
-    .then(r => r.json()).then(d => {
-      if (d.error) throw new Error(d.error);
-      data = d; render();
-    }).catch(e => { $("#out").innerHTML = `<div class="error" style="margin-top:16px">Couldn't build the screen: ${esc(e.message)}</div>`; });
+  fetch("/api/momentum").then(r => r.json()).then(d => {
+    if (d.error) throw new Error(d.error);
+    data = d; render();
+    $("#pdf").disabled = false;
+  }).catch(e => { $("#out").innerHTML = `<div class="error" style="margin-top:16px">Couldn't build the screen: ${esc(e.message)}</div>`; });
 }
-$("#apply").onclick = load;
-$("#fresh").onclick = () => { $("#hold").value = ""; load(); };
+
+$("#pdf").onclick = () => {
+  const title = document.title;
+  document.title = `Momentum Top 20 ${data ? data.signal_date : ""}`;   // suggested file name
+  window.print();
+  document.title = title;
+};
+window.addEventListener("beforeprint", () => { if (curve && $("#chart")) drawChart(true); });
+window.addEventListener("afterprint", () => { if (curve && $("#chart")) drawChart(); });
 
 function tradeList(items, kind, empty) {
   if (!items.length) return `<p class="empty">${empty}</p>`;
@@ -160,36 +238,34 @@ function tradeList(items, kind, empty) {
 }
 
 function render() {
-  const d = data, o = d.official;
-  const held = new Set(d.holdings_in);
-  const traded = o.buy.length + o.sell.length;
+  const d = data, o = d.official, hold = parseHold($("#hold").value);
+  plan = decide(hold);
+  const {keep, sell, buy, portfolio} = plan;
+  $("#hold-print").textContent = hold.length ? "Holdings checked: " + hold.join(", ") : "Fresh start (no holdings entered).";
   let h = `<div class="meta" style="margin-top:20px">
     <span class="chip">Signal close <b>${fmtDate(d.signal_date)}</b></span>
     <span class="chip">Trade day <b>${fmtDate(d.trade_date)}</b></span>
     <span class="chip">Next signal <b>${fmtDate(d.next_signal)}</b> close</span>
     <span class="chip">Data through <b>${fmtDate(d.data_through)}</b></span>
     <span class="chip">Universe <b>${o.universe}</b> stocks</span></div>`;
-  if (d.unknown_symbols.length)
-    h += `<div class="note">Not in today's NIFTY 500 list, so they are sold: ${d.unknown_symbols.map(esc).join(", ")}. Check the spelling if that's unexpected.</div>`;
-  h += `<div class="banner">${d.fresh_start
-      ? `<b>Fresh start:</b> buy the ${o.portfolio.length} stocks below in equal amounts.`
-      : traded ? `<b>This month:</b> sell ${o.sell.length}, buy ${o.buy.length}, keep ${o.keep.length}. Then reset all 20 to equal amounts.`
-               : `<b>No trades this month:</b> all ${o.keep.length} holdings still rank in the top 40.`}
+  h += `<div class="banner">${plan.fresh
+      ? `<b>Fresh start:</b> buy the ${portfolio.length} stocks below in equal amounts.`
+      : (buy.length + sell.length) ? `<b>This month:</b> sell ${sell.length}, buy ${buy.length}, keep ${keep.length}. Then reset all ${portfolio.length} to equal amounts.`
+               : `<b>No trades this month:</b> all ${keep.length} holdings still rank in the top ${d.rules.keep_rank}.`}
     Rules use closes up to ${fmtDate(d.signal_date)}, so the answer only changes after the next month-end close.</div>`;
 
-  h += `<div class="h2row"><h2>This month's trades</h2><button class="small" id="dl-trades">Download trades (CSV)</button></div><div class="cols">
-    <div class="card"><h3>Sell (${o.sell.length})</h3>${tradeList(o.sell, "sell", "Nothing to sell.")}</div>
-    <div class="card"><h3>Buy (${o.buy.length})</h3>${tradeList(o.buy, "buy", "Nothing to buy.")}</div>
-    <div class="card"><h3>Keep (${o.keep.length})</h3>${tradeList(o.keep, "keep", d.fresh_start ? "Fresh start: nothing held yet." : "Nothing kept.")}</div></div>
-    <div class="row"><button id="save">Save the new portfolio as my holdings</button>
+  h += `<h2 id="trades">This month's trades</h2><div class="cols">
+    <div class="card"><h3>Sell (${sell.length})</h3>${tradeList(sell, "sell", "Nothing to sell.")}</div>
+    <div class="card"><h3>Buy (${buy.length})</h3>${tradeList(buy, "buy", "Nothing to buy.")}</div>
+    <div class="card"><h3>Keep (${keep.length})</h3>${tradeList(keep, "keep", plan.fresh ? "Fresh start: nothing held yet." : "Nothing kept.")}</div></div>
+    <div class="row no-print"><button id="save">Save the new portfolio as my holdings</button>
     <span class="fine">Do this once your trades are done, so next month's check starts from them.</span></div>`;
 
-  h += `<div class="h2row"><h2>P&amp;L since the rebalance</h2>
-    <button class="small" id="dl-pos">Download daily P&amp;L (CSV)</button></div>
-    <div class="card" id="curvecard"></div>`;
+  h += `<h2>P&amp;L since the rebalance</h2><div class="card" id="curvecard"></div>`;
 
   h += `<h2>Sizing</h2><div class="card"><div class="sizing">
-    <div><label for="cap">Total capital (₹)</label><input type="number" id="cap" min="0" step="10000" value="${esc(store.get("mom_cap", "1000000"))}"></div>
+    <div><label for="cap">Total capital</label><input type="number" id="cap" min="0" step="10000" value="${esc(store.get("mom_cap", "1000000"))}">
+      <b class="print-only" id="cap-print"></b></div>
     <div><label for="share">In the strategy: <b id="sharev"></b> (the rest in a liquid fund)</label>
       <input type="range" id="share" min="0" max="100" step="5" value="${esc(store.get("mom_share", "60"))}">
       <div class="split"><div class="s" id="splits"></div><div class="l" style="flex:1"></div></div></div></div>
@@ -198,25 +274,27 @@ function render() {
     <p class="fine">In the backtest a 60 / 40 split had about the same worst fall as an equal-weight NIFTY 500 (−24% against −39% at 100%)
       and still earned about 21% a year against 31% at 100%. Reset the split once a month.</p></div>`;
 
-  const w = d.latest.watch;
-  const risk = w.filter(x => x.status !== "fine");
+  const lr = d.latest.ranks, K = d.rules.keep_rank;
+  const risk = portfolio.map(x => ({sym: x.symbol, was: x.rank, now: lr[x.symbol] ?? null}))
+    .map(w => ({...w, status: w.now == null || w.now > K ? "would be sold" : w.now > 30 ? "at risk" : "fine"}))
+    .filter(w => w.status !== "fine");
   h += `<h2>Watch list (latest close, ${fmtDate(d.data_through)})</h2><div class="card">
     <p class="fine" style="margin-top:0">Where this month's portfolio ranks today. Information only: trades happen at month end
       (screening weekly added nothing in the backtest).</p>
     ${risk.length ? `<ul class="list">${risk.map(x => `<li><span class="tag ${x.status === "at risk" ? "risk" : "sell"}">${esc(x.status.toUpperCase())}</span>
-      <b>${esc(x.symbol)}</b> · rank ${x.rank_month_end} at month end → ${x.rank_now ?? "not eligible"} now</li>`).join("")}</ul>`
-      : `<p class="empty">All ${w.length} stocks still rank 30 or better.</p>`}</div>`;
+      <b>${esc(x.sym)}</b> · rank ${x.was} at month end → ${x.now ?? "not eligible"} now</li>`).join("")}</ul>`
+      : `<p class="empty">All ${portfolio.length} stocks still rank 30 or better.</p>`}</div>`;
 
   const rk = view === "official" ? o.ranking : d.latest.ranking;
-  h += `<div class="h2row"><h2>Ranking (all ${rk.length} eligible stocks)</h2>
-    <button class="small" id="dl-rank">Download all ${rk.length} (CSV)</button></div>
-    <div class="row" style="margin:0 0 10px"><div class="seg" role="group" aria-label="Ranking date">
+  h += `<h2>Top ${rk.length} · ${view === "official" ? "month end, " + fmtDate(d.signal_date) : "latest close, " + fmtDate(d.data_through)}</h2>
+    <div class="row no-print" style="margin:0 0 10px"><div class="seg" role="group" aria-label="Ranking date">
     <button data-v="official" aria-pressed="${view === "official"}">Month end (${fmtDate(d.signal_date)})</button>
     <button data-v="latest" aria-pressed="${view === "latest"}">Latest (${fmtDate(d.data_through)})</button></div></div>
     <div class="card" style="padding:0"><div class="tablewrap"><table><thead><tr><th class="n">#</th><th>Stock</th><th>Sector</th>
     <th class="n">12m − 1m</th><th class="n">12m</th><th class="n">6m</th><th class="n">3m</th><th class="n">1m</th><th class="n">Off 1y high</th>
     <th class="n">Vol</th><th class="n">Turnover ₹cr</th><th class="n">Close</th></tr></thead><tbody id="rankbody"></tbody></table></div></div>
-    <p class="fine">Blue edge = in this month's portfolio. Top ${d.rules.top} are bought; holdings are kept down to rank ${d.rules.keep_rank}.</p>`;
+    <p class="fine">Blue edge = in this month's portfolio. Top ${d.rules.top} are bought; holdings are kept down to rank ${K}.
+      ${o.universe} stocks qualified; only the top ${rk.length} are listed.</p>`;
 
   h += `<h2>Rules and limits</h2><div class="fine"><ul>
     <li>Universe: today's NIFTY 500 list (${esc(d.list_source)}), EQ series only, price ≥ ₹${d.rules.min_price}, traded on 230 of the last 252 days,
@@ -229,32 +307,24 @@ function render() {
 
   $("#out").innerHTML = h;
   $("#save").onclick = () => {
-    $("#hold").value = o.portfolio.map(x => x.symbol).join(" ");
-    store.set("mom_holdings", $("#hold").value);
-    $("#holdmsg").textContent = "Saved " + o.portfolio.length + " holdings in this browser.";
+    $("#hold").value = portfolio.map(x => x.symbol).join(" ");
+    if (saveHold()) $("#holdmsg").textContent = `Saved ${portfolio.length} holdings in this browser.`;
+    render();
     window.scrollTo({top: 0, behavior: "smooth"});
   };
   document.querySelectorAll(".seg button").forEach(b => b.onclick = () => { view = b.dataset.v; render(); });
-  $("#cap").oninput = $("#share").oninput = () => { sizing(); if (data.curve && $("#readout")) asofView(); };
-  $("#dl-rank").onclick = () => downloadCsv(`momentum_ranking_${view === "official" ? d.signal_date : d.data_through}.csv`,
-    ["rank", "symbol", "name", "sector", "score_12m_1m", "r12", "r6", "r3", "r1", "off_1y_high", "vol", "turnover_cr", "close", "in_portfolio"],
-    rk.map(x => [x.rank, x.symbol, x.name, x.sector, x.score, x.r12, x.r6, x.r3, x.r1, x.off_high, x.vol, x.turnover_cr, x.close,
-                 o.portfolio.some(p => p.symbol === x.symbol) ? "yes" : ""]));
-  $("#dl-trades").onclick = () => downloadCsv(`momentum_trades_${d.trade_date || d.signal_date}.csv`,
-    ["action", "symbol", "rank", "score_12m_1m", "sector", "reason"],
-    [...o.sell.map(x => ["SELL", x]), ...o.buy.map(x => ["BUY", x]), ...o.keep.map(x => ["KEEP", x])]
-      .map(([a, x]) => [a, x.symbol, x.rank ?? "", x.score ?? "", x.sector ?? "", x.reason]));
-  $("#dl-pos").onclick = downloadPositions;
-  sizing(); ranking(held); curveView();
+  $("#cap").oninput = $("#share").oninput = () => { sizing(); if (curve) asofView(); };
+  sizing(); ranking(); curveView();
 }
 
 function sizing() {
-  const o = data.official, cap = Math.max(0, +$("#cap").value || 0), share = +$("#share").value;
+  const port = plan.portfolio, cap = Math.max(0, +$("#cap").value || 0), share = +$("#share").value;
   store.set("mom_cap", String(cap)); store.set("mom_share", String(share));
   $("#sharev").textContent = share + "%"; $("#splits").style.flex = `0 0 ${share}%`;
-  const per = cap * share / 100 / Math.max(1, o.portfolio.length);
+  $("#cap-print").textContent = inr(cap);
+  const per = cap * share / 100 / Math.max(1, port.length);
   let used = 0;
-  const rows = o.portfolio.map(x => {
+  const rows = port.map(x => {
     const px = x.latest_close || x.close, q = Math.floor(per / px); used += q * px;
     return `<tr><td><b>${esc(x.symbol)}</b></td><td class="n">${x.rank}</td><td class="n">${px.toLocaleString("en-IN", {maximumFractionDigits: 2})}</td>
       <td class="n">${inr(per)}</td><td class="n">${q.toLocaleString("en-IN")}</td><td class="n">${pct(x.since_trade)}</td></tr>`;
@@ -264,56 +334,52 @@ function sizing() {
   $("#sizebody").innerHTML = rows.join("");
 }
 
-function downloadCsv(name, header, rows) {
-  const cell = v => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const text = "﻿" + [header, ...rows].map(r => r.map(cell).join(",")).join("\r\n");
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([text], {type: "text/csv;charset=utf-8"}));
-  a.download = name; document.body.appendChild(a); a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+function ranking() {
+  const port = new Set(plan.portfolio.map(x => x.symbol));
+  $("#rankbody").innerHTML = (view === "official" ? data.official.ranking : data.latest.ranking).map(x =>
+    `<tr class="${port.has(x.symbol) ? "held" : ""}"><td class="n">${x.rank}</td><td><b>${esc(x.symbol)}</b></td><td>${esc(x.sector)}</td>
+     <td class="n">${pct(x.score, 0)}</td><td class="n">${pct(x.r12, 0)}</td><td class="n">${pct(x.r6, 0)}</td><td class="n">${pct(x.r3, 0)}</td>
+     <td class="n">${pct(x.r1, 0)}</td><td class="n">${pct(x.off_high, 0)}</td><td class="n">${x.vol == null ? "–" : Math.round(x.vol * 100) + "%"}</td>
+     <td class="n">${x.turnover_cr.toFixed(0)}</td><td class="n">${x.close.toLocaleString("en-IN", {maximumFractionDigits: 2})}</td></tr>`).join("");
 }
 
 // ---------- P&L since the rebalance ----------
-let asof = null;                          // index into curve.dates
 const SER = [
-  {key: "portfolio", name: "This month's portfolio", short: "Portfolio", color: "var(--s1)"},
+  {key: "portfolio", name: "Your portfolio", short: "Portfolio", color: "var(--s1)"},
   {key: "ew_nifty500", name: "Equal-weight NIFTY 500", short: "EW N500", color: "var(--s2)"},
   {key: "nifty50", name: "Nifty 50 (NIFTYBEES)", short: "Nifty 50", color: "var(--s3)"},
 ];
-const capShare = () => [Math.max(0, +$("#cap").value || 0), +$("#share").value / 100];
-const liquidGrowth = i => {               // calendar days since the trade-day close, at 6% a year
-  const c = data.curve, days = (new Date(c.dates[i]) - new Date(c.dates[0])) / 864e5;
-  return Math.pow(1.06, days / 365);
-};
 
 function curveView() {
   const c = data.curve, box = $("#curvecard");
   if (!c || c.dates.length < 2) {
+    curve = null;
     box.innerHTML = `<p class="empty">The portfolio is bought at the close of ${fmtDate(data.trade_date || data.signal_date)};
       the curve starts once one more trading day has closed.</p>`;
-    $("#dl-pos").disabled = true;
     return;
   }
-  const n = c.dates.length;
+  const n = c.dates.length, syms = plan.portfolio.map(x => x.symbol).filter(s => c.positions[s]);
+  curve = {...c, syms, portfolio: c.dates.map((_, j) => syms.reduce((a, s) => a + c.positions[s][j], 0) / Math.max(1, syms.length))};
   if (asof == null || asof >= n) asof = n - 1;
-  const series = SER.filter(s => c[s.key]);
+  const series = SER.filter(s => curve[s.key]);
   box.innerHTML = `<div class="legend">${series.map(s => `<span><i style="background:${s.color}"></i>${s.name}</span>`).join("")}</div>
     <div class="chartbox" id="chart"></div>
-    <div class="asof"><label for="asof">As of</label><input type="range" id="asof" min="1" max="${n - 1}" value="${asof}">
+    <div class="asof no-print"><label for="asof">As of</label><input type="range" id="asof" min="1" max="${n - 1}" value="${asof}">
       <b id="asofv"></b></div>
+    <p class="print-only" id="asofp"></p>
     <div class="readout" id="readout"></div>
     <div class="tablewrap" style="max-height:360px"><table><thead><tr><th>Stock</th><th class="n">Rank</th><th class="n">Return</th>
       <th class="n">P&amp;L on its share</th></tr></thead><tbody id="posbody"></tbody></table></div>
-    <p class="fine">Bought in equal amounts at the ${fmtDate(c.dates[0])} close and left to drift; before costs and tax.
+    <p class="fine">This month's portfolio, bought in equal amounts at the ${fmtDate(c.dates[0])} close and left to drift; before costs and tax.
       The liquid share is assumed to earn 6% a year. Pick a date with the slider, or click the chart, to see the P&amp;L at that day's close.</p>`;
   $("#asof").oninput = e => { asof = +e.target.value; drawChart(); asofView(); };
   drawChart(); asofView();
 }
 
-function drawChart() {
-  const c = data.curve, n = c.dates.length, el = $("#chart");
+function drawChart(forPrint) {
+  const c = curve, n = c.dates.length, el = $("#chart");
   const series = SER.filter(s => c[s.key]);
-  const W = Math.max(320, el.clientWidth), H = 260, m = {l: 44, r: 112, t: 10, b: 26};
+  const W = forPrint ? 720 : Math.max(320, el.clientWidth), H = 260, m = {l: 44, r: 112, t: 10, b: 26};
   const iw = W - m.l - m.r, ih = H - m.t - m.b;
   const vals = series.flatMap(s => c[s.key].map(v => v - 1));
   let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
@@ -324,7 +390,7 @@ function drawChart() {
   for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) {
     const yy = y(t).toFixed(1), zero = Math.abs(t) < 1e-9;
     g += `<line x1="${m.l}" x2="${m.l + iw}" y1="${yy}" y2="${yy}" stroke="${zero ? "var(--axis)" : "var(--grid)"}" stroke-width="1"/>
-      <text x="${m.l - 6}" y="${+yy + 4}" text-anchor="end">${t > 1e-9 ? "+" : ""}${(Math.abs(t) < 1e-9 ? 0 : t * 100).toFixed(step < 0.01 ? 1 : 0)}%</text>`;
+      <text x="${m.l - 6}" y="${+yy + 4}" text-anchor="end">${t > 1e-9 ? "+" : ""}${(zero ? 0 : t * 100).toFixed(step < 0.01 ? 1 : 0)}%</text>`;
   }
   const ticks = [...new Set([0, Math.round((n - 1) / 2), n - 1])];
   ticks.forEach((i, k) => g += `<text x="${x(i)}" y="${H - 6}" text-anchor="${k === 0 ? "start" : k === ticks.length - 1 ? "end" : "middle"}">${
@@ -334,7 +400,6 @@ function drawChart() {
     const d = c[s.key].map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v - 1).toFixed(1)}`).join("");
     g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
   });
-  // direct end labels, nudged apart so they never collide
   const ends = series.map(s => ({s, v: c[s.key][n - 1] - 1})).sort((a, b) => b.v - a.v);
   let lastY = -1e9;
   ends.forEach(e => { e.y = Math.max(y(e.v) + 4, lastY + 14); lastY = e.y; });
@@ -342,7 +407,7 @@ function drawChart() {
   g += `<g id="hov" style="display:none"><line id="hl" y1="${m.t}" y2="${m.t + ih}" stroke="var(--axis)" stroke-width="1"/>${
     series.map(s => `<circle data-k="${s.key}" r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`).join("")}</g>
     <rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent" id="hit" style="cursor:crosshair"/>`;
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Growth since the rebalance: portfolio against equal-weight NIFTY 500 and Nifty 50">${g}</svg><div class="tip" id="tip"></div>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Growth since the rebalance: your portfolio against equal-weight NIFTY 500 and Nifty 50">${g}</svg><div class="tip" id="tip"></div>`;
   const hit = $("#hit"), hov = $("#hov"), tip = $("#tip");
   const idxAt = ev => { const r = hit.getBoundingClientRect(); return Math.max(0, Math.min(n - 1, Math.round((ev.clientX - r.left) / r.width * (n - 1)))); };
   hit.onmousemove = ev => {
@@ -362,10 +427,12 @@ function drawChart() {
 }
 
 function asofView() {
-  const c = data.curve, i = asof, [cap, share] = capShare();
-  const nPos = Object.keys(c.positions).length || 1, per = cap * share / nPos;
-  const stockPnl = cap * share * (c.portfolio[i] - 1), liqPnl = cap * (1 - share) * (liquidGrowth(i) - 1);
-  $("#asofv").textContent = `${fmtDate(c.dates[i])} · ${i} trading day${i === 1 ? "" : "s"}`;
+  const c = curve, i = asof, cap = Math.max(0, +$("#cap").value || 0), share = +$("#share").value / 100;
+  const per = cap * share / Math.max(1, c.syms.length);
+  const days = (new Date(c.dates[i]) - new Date(c.dates[0])) / 864e5;
+  const stockPnl = cap * share * (c.portfolio[i] - 1), liqPnl = cap * (1 - share) * (Math.pow(1.06, days / 365) - 1);
+  const label = `${fmtDate(c.dates[i])} · ${i} trading day${i === 1 ? "" : "s"}`;
+  $("#asofv").textContent = label; $("#asofp").textContent = "As of " + label;
   const money = v => `<span class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : "−"}${inr(Math.abs(v))}</span>`;
   $("#readout").innerHTML = `
     <div><span>Portfolio</span><b>${pct(c.portfolio[i] - 1)}</b></div>
@@ -373,33 +440,14 @@ function asofView() {
     ${c.nifty50 ? `<div><span>vs Nifty 50</span><b>${pct(c.portfolio[i] - c.nifty50[i])}</b></div>` : ""}
     <div><span>Your P&amp;L (${Math.round(share * 100)}% in stocks)</span><b>${money(stockPnl + liqPnl)}</b></div>
     <div><span>On ${inr(cap)} total</span><b>${pct((stockPnl + liqPnl) / Math.max(1, cap))}</b></div>`;
-  const rank = Object.fromEntries(data.official.portfolio.map(x => [x.symbol, x.rank]));
-  const rows = Object.entries(c.positions).map(([sym, g]) => ({sym, r: g[i] - 1})).sort((a, b) => b.r - a.r);
-  $("#posbody").innerHTML = rows.map(p => `<tr><td><b>${esc(p.sym)}</b></td><td class="n">${rank[p.sym] ?? ""}</td>
+  const rank = Object.fromEntries(plan.portfolio.map(x => [x.symbol, x.rank]));
+  $("#posbody").innerHTML = c.syms.map(sym => ({sym, r: c.positions[sym][i] - 1})).sort((a, b) => b.r - a.r)
+    .map(p => `<tr><td><b>${esc(p.sym)}</b></td><td class="n">${rank[p.sym] ?? ""}</td>
     <td class="n">${pct(p.r)}</td><td class="n">${money(per * p.r)}</td></tr>`).join("");
 }
 
-function downloadPositions() {
-  const c = data.curve;
-  if (!c) return;
-  const syms = Object.keys(c.positions);
-  downloadCsv(`momentum_pnl_since_${c.dates[0]}.csv`, ["date", "portfolio", "ew_nifty500", "nifty50", ...syms],
-    c.dates.map((dt, i) => [dt, (c.portfolio[i] - 1).toFixed(5), (c.ew_nifty500[i] - 1).toFixed(5),
-      c.nifty50 ? (c.nifty50[i] - 1).toFixed(5) : "", ...syms.map(s => (c.positions[s][i] - 1).toFixed(5))]));
-}
-
 let _rz;
-window.addEventListener("resize", () => { clearTimeout(_rz); _rz = setTimeout(() => { if (data && data.curve && $("#chart")) drawChart(); }, 150); });
-
-function ranking() {
-  const port = new Set(data.official.portfolio.map(x => x.symbol));
-  const rows = (view === "official" ? data.official.ranking : data.latest.ranking).map(x =>
-    `<tr class="${port.has(x.symbol) ? "held" : ""}"><td class="n">${x.rank}</td><td><b>${esc(x.symbol)}</b></td><td>${esc(x.sector)}</td>
-     <td class="n">${pct(x.score, 0)}</td><td class="n">${pct(x.r12, 0)}</td><td class="n">${pct(x.r6, 0)}</td><td class="n">${pct(x.r3, 0)}</td>
-     <td class="n">${pct(x.r1, 0)}</td><td class="n">${pct(x.off_high, 0)}</td><td class="n">${x.vol == null ? "–" : Math.round(x.vol * 100) + "%"}</td>
-     <td class="n">${x.turnover_cr.toFixed(0)}</td><td class="n">${x.close.toLocaleString("en-IN", {maximumFractionDigits: 2})}</td></tr>`);
-  $("#rankbody").innerHTML = rows.join("");
-}
+window.addEventListener("resize", () => { clearTimeout(_rz); _rz = setTimeout(() => { if (curve && $("#chart")) drawChart(); }, 150); });
 
 load();
 </script>
